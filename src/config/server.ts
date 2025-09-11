@@ -2,12 +2,19 @@ import * as express from 'express';
 
 const app = express();
 
-// Middleware básico
+// Middleware básico, este funciona como un puente para nuestras res, req
 app.use(express.json());
 
 // Ruta básica
 app.get('/', (req, res) => {
-  console.log('FINALLY ANDA');
+  console.log('FINALLY ANDA', req.method)
+  // Con esto se envia la solicitud para que la pagina responda con un HTTP 200 OK en caso de que este funcionando
+  res.sendStatus(200);
+});
+
+app.get ('/dashboard', (req, res) => {
+  console.log('DASHBOARD ACCEDIDO', req.method);
+  res.sendStatus(200);
 });
 
 export default app;
