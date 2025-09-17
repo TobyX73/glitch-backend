@@ -37,3 +37,11 @@ model Product {
   @@index([categoryId])
   @@index([isActive]) 
 }
+
+model User {
+  id       Int     @id @default(autoincrement())
+  email    String  @unique
+  password String
+  role     String  @default("user") // "user" | "admin"
+  products Product[]
+}

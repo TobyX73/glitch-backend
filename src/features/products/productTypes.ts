@@ -35,3 +35,13 @@ export interface ProductResponse {
     name: string;
   };
 }
+
+export interface ProductsQueryParams {
+  page?: number;
+  limit?: number;        
+  categoryId?: number;   
+  search?: string;       
+  minPrice?: number;     
+  maxPrice?: number;     
+  isActive?: boolean;   
+}
