@@ -3,7 +3,7 @@ import { config } from "dotenv";
 
 config();
 
-const prisma = new PrismaClient();
+export const prisma = new PrismaClient();
 
 export const connectDatabase = async () => {
   try {
@@ -13,5 +13,3 @@ export const connectDatabase = async () => {
     console.error('Error al conectar', error);
   }
 };
-
-export default prisma;
