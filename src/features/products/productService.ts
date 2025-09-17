@@ -222,4 +222,31 @@ export const productService = {
     }
   },
 
+  // Obtener producto por ID
+  async getProductById(id: number) {
+    try {
+      const product = await prisma.product.findUnique({
+        where: { id },
+        include: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+            }
+          }
+        }
+      });
+
+      if (!product) {
+        throw new Error('Producto no encontrado');
+      }
+
+      return {
+        ...product,
+        price: Number(product.price)
+      };
+    } catch (error) {
+      throw new Error('Error al obtener producto');
+    }
+  },
 };
