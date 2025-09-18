@@ -1,5 +1,8 @@
 import { productService } from "./productService";
-import { CreateProductInput, ProductsQueryParams } from "./productTypes";
+import { CreateProductInput, ProductsQueryParams, UpdateProductInput } from "./productTypes";
+import { CreateProductDto } from "./DTOs/productCreateDTO";
+import { UpdateProductDto } from "./DTOs/productUpdateDTO";
+import { UpdateStockDto } from "./DTOs/updateStockDTO";
 import { Request, Response } from "express";
 
 export const productController = {
@@ -7,31 +10,20 @@ export const productController = {
     //Crear producto
     async create(req: Request, res: Response) {
     try {
-      const data: CreateProductInput = req.body;
+      // Los datos ya están validados por el middleware DTO
+      const data: CreateProductDto = req.body;
+      
+      // Convertir DTO a formato del servicio
+      const productData: CreateProductInput = {
+        name: data.name,
+        description: data.description,
+        price: data.price,
+        stock: data.stock || 0,
+        imageUrl: data.imageUrl,
+        categoryId: data.categoryId
+      };
 
-      // Validaciones básicas
-      if (!data.name || !data.price || !data.categoryId) {
-        return res.status(400).json({
-          success: false,
-          error: 'Nombre, precio y categoría son requeridos'
-        });
-      }
-
-      if (data.price <= 0) {
-        return res.status(400).json({
-          success: false,
-          error: 'El precio debe ser mayor a 0'
-        });
-      }
-
-      if (data.stock < 0) {
-        return res.status(400).json({
-          success: false,
-          error: 'El stock no puede ser negativo'
-        });
-      }
-
-      const product = await productService.createProduct(data);
+      const product = await productService.createProduct(productData);
 
       res.status(201).json({
         success: true,
@@ -114,6 +106,106 @@ export const productController = {
     }
   },
 
+    // Actualizar producto
+    async update(req: Request, res: Response) {
+    try {
+      const id = parseInt(req.params.id);
 
+      if (isNaN(id)) {
+        return res.status(400).json({
+          success: false,
+          error: 'ID de producto inválido'
+        });
+      }
 
-}
+      // Los datos ya están validados por el middleware DTO
+      const data: UpdateProductDto = req.body;
+      
+      // Convertir DTO a formato del servicio
+      const updateData: UpdateProductInput = {
+        name: data.name,
+        description: data.description,
+        price: data.price,
+        stock: data.stock,
+        imageUrl: data.imageUrl,
+        categoryId: data.categoryId
+      };
+
+      const product = await productService.updateProduct(id, updateData);
+
+      res.json({
+        success: true,
+        message: 'Producto actualizado exitosamente',
+        data: product
+      });
+
+    } catch (error) {
+      console.error('Error en update:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Error interno del servidor'
+      });
+    }
+  },
+
+  // Eliminar producto
+  async delete(req: Request, res: Response) {
+    try {
+      const id = parseInt(req.params.id);
+
+      if (isNaN(id)) {
+        return res.status(400).json({
+          success: false,
+          error: 'ID de producto inválido'
+        });
+      }
+
+      await productService.deleteProduct(id);
+
+      res.json({
+        success: true,
+        message: 'Producto eliminado exitosamente'
+      });
+
+    } catch (error) {
+      console.error('Error en delete:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Error interno del servidor'
+      });
+    }
+  },
+
+  // Actualizar stock
+  async updateStock(req: Request, res: Response) {
+    try {
+      const id = parseInt(req.params.id);
+
+      if (isNaN(id)) {
+        return res.status(400).json({
+          success: false,
+          error: 'ID de producto inválido'
+        });
+      }
+
+      // Los datos ya están validados por el middleware DTO
+      const { stock }: UpdateStockDto = req.body;
+
+      const product = await productService.updateStock(id, stock);
+
+      res.json({
+        success: true,
+        message: 'Stock actualizado exitosamente',
+        data: product
+      });
+
+    } catch (error) {
+      console.error('Error en updateStock:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Error interno del servidor'
+      });
+    }
+  }
+};
+

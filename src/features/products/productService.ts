@@ -35,7 +35,7 @@ export const productService = {
 
       return product;
     } catch (error) {
-      throw new error(`Error al crear el producto: ${error.message}`);
+      throw new Error(`Error al crear el producto:`);
     }
   },
 
@@ -79,7 +79,7 @@ export const productService = {
         price: Number(product.price)
       };
     } catch (error) {
-      throw new Error(`Error al actualizar producto: ${error.message}`);
+      throw new Error(`Error al actualizar producto`);
     }
   },
 
@@ -113,7 +113,7 @@ export const productService = {
         price: Number(product.price)
       };
     } catch (error) {
-      throw new Error(`Error al eliminar producto: ${error.message}`);
+      throw new Error(`Error al eliminar producto:`);
     }
   },
 
@@ -148,7 +148,7 @@ export const productService = {
 
       return product;
     } catch (error) {
-      throw new Error(`Error al actualizar stock: ${error.message}`);
+      throw new Error(`Error al actualizar stock:`);
     }
   },
 

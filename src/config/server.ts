@@ -1,4 +1,5 @@
-import * as express from 'express';
+import express from 'express';
+import productRoutes from '../features/products/productRoutes';
 
 const app = express();
 
@@ -16,5 +17,8 @@ app.get ('/dashboard', (req, res) => {
   console.log('DASHBOARD ACCEDIDO', req.method);
   res.sendStatus(200);
 });
+
+//Endpoint para productos
+app.use('/api/products', productRoutes); 
 
 export default app;

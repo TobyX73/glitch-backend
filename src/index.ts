@@ -1,5 +1,6 @@
 import { connectDatabase} from './config/database';
 import app from './config/server';
+import 'reflect-metadata';
 
 const PORT = 3000;
 
