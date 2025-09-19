@@ -3,10 +3,14 @@ import { productController } from "./productController";
 
 const router = Router();
 
-router.get('/', productController.getAll);           // GET /api/products - Ver todos los productos     // GET /api/products/search?q= - Buscar productos (si tienes este método)
-router.get('/:id', productController.getById); 
+router.get('/', productController.getAll);          
+router.get('/:id', productController.getById);      
 
-router.post('/' ,productController.create); // POST desde admin
+
+router.post('/', productController.create);         
+router.put('/:id', productController.update);      
+router.patch('/:id/stock', productController.updateStock); 
+router.delete('/:id', productController.delete);     
 
 export default router;
 

@@ -83,7 +83,7 @@ export const productService = {
     }
   },
 
-  //Eliminar el producto
+  //Eliminar el producto (soft delete)
   async deleteProduct(id: number) {
     try {
       const productExists = await prisma.product.findUnique({
@@ -94,9 +94,12 @@ export const productService = {
         throw new Error('Producto no encontrado');
       }
 
+      // Soft delete - marcar como inactivo
       const product = await prisma.product.update({
         where: { id },
         data: { 
+          isActive: false,
+          updatedAt: new Date()
         },
         include: {
           category: {
@@ -113,7 +116,7 @@ export const productService = {
         price: Number(product.price)
       };
     } catch (error) {
-      throw new Error(`Error al eliminar producto:`);
+      throw new Error(`Error al eliminar producto: ${error instanceof Error ? error.message : 'Error desconocido'}`);
     }
   },
 
@@ -159,7 +162,9 @@ export const productService = {
       const limit = params.limit || 12;
       const skip = (page - 1) * limit;
 
-      const where: any = {};
+      const where: any = {
+        isActive: true  // Por defecto solo mostrar productos activos
+      };
 
       // Filtros que tu frontend puede usar
       if (params.categoryId) {
@@ -179,6 +184,11 @@ export const productService = {
         where.price = {};
         if (params.minPrice) where.price.gte = params.minPrice;
         if (params.maxPrice) where.price.lte = params.maxPrice;
+      }
+
+      // Permitir override del filtro isActive si se especifica explícitamente
+      if (params.isActive !== undefined) {
+        where.isActive = params.isActive;
       }
 
       const [products, total] = await Promise.all([
