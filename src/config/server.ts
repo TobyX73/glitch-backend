@@ -1,6 +1,7 @@
 import express from 'express';
 import productRoutes from '../features/products/productRoutes';
 import categoryRoutes from '../features/category/categoryRoutes';
+import userRoutes from '../features/users/userRoutes';
 
 const app = express();
 
@@ -22,5 +23,6 @@ app.get ('/dashboard', (req, res) => {
 //Endpoint para productos
 app.use('/api/products', productRoutes); 
 app.use('/api/categories', categoryRoutes); 
+app.use('/api/users', userRoutes); 
 
 export default app;
