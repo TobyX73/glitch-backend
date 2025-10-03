@@ -259,4 +259,34 @@ export const productService = {
       throw new Error('Error al obtener producto');
     }
   },
+
+  // Reducir stock después de pago aprobado
+  async reduceStock(orderId: number): Promise<void> {
+    try {
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { items: true }
+      });
+
+      if (!order) {
+        throw new Error('Orden no encontrada');
+      }
+
+      await prisma.$transaction(async (tx) => {
+        for (const item of order.items) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: {
+              stock: {
+                decrement: item.quantity
+              }
+            }
+          });
+        }
+      });
+    } catch (error) {
+      console.error('Error reduciendo stock:', error);
+      throw error;
+    }
+  },
 };

@@ -1,7 +1,11 @@
+import 'reflect-metadata';
 import express from 'express';
 import productRoutes from '../features/products/productRoutes';
 import categoryRoutes from '../features/category/categoryRoutes';
 import userRoutes from '../features/users/userRoutes';
+import orderRoutes from '../features/orders/orderRoutes';
+import webhooksRoutes from '../features/webhooks/webhookRoutes';
+
 
 const app = express();
 
@@ -24,5 +28,7 @@ app.get ('/dashboard', (req, res) => {
 app.use('/api/products', productRoutes); 
 app.use('/api/categories', categoryRoutes); 
 app.use('/api/users', userRoutes); 
+app.use('/api/orders', orderRoutes);
+app.use('/api/webhooks', webhooksRoutes); 
 
 export default app;

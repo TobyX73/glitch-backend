@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,45 +11,44 @@ model Category {
   id          Int       @id @default(autoincrement())
   name        String    @unique
   description String?
-  isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  
-  products    Product[] 
+  isActive    Boolean   @default(true)
+  products    Product[]
 }
 
 model Product {
-  id          Int      @id @default(autoincrement())
+  id          Int         @id @default(autoincrement())
   name        String
   description String?
-  price       Decimal  @db.Decimal(10, 2)
-  stock       Int      @default(0)
+  price       Decimal     @db.Decimal(10, 2)
+  stock       Int         @default(0)
   imageUrl    String?
   categoryId  Int
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  category    Category @relation(fields: [categoryId], references: [id])
-  
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  orderItems  OrderItem[]
+  category    Category    @relation(fields: [categoryId], references: [id])
+
   @@index([categoryId])
-  @@index([isActive]) 
+  @@index([isActive])
 }
 
 model User {
-  id              Int       @id @default(autoincrement())
-  email           String    @unique
-  password        String    // Hasheado
-  firstName       String
-  lastName        String
-  phone           String
-  role            String    @default("user") // "user" | "admin"
-  isActive        Boolean   @default(true)
-  emailVerified   Boolean   @default(false)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  addresses       Address[]
+  id            Int       @id @default(autoincrement())
+  email         String    @unique
+  password      String
+  role          String    @default("user")
+  createdAt     DateTime  @default(now())
+  emailVerified Boolean   @default(false)
+  firstName     String
+  isActive      Boolean   @default(true)
+  lastName      String
+  phone         String
+  updatedAt     DateTime  @updatedAt
+  addresses     Address[]
+  orders        Order[]
 }
 
 model Address {
@@ -67,3 +63,82 @@ model Address {
   user      User    @relation(fields: [userId], references: [id])
 }
 
+model Order {
+  id                  Int         @id @default(autoincrement())
+  userId              Int?
+  guestEmail          String?
+  guestName           String?
+  total               Decimal     @db.Decimal(10, 2)
+  status              OrderStatus @default(PENDING)
+  mpExternalReference String?     @unique
+  notes               String?
+  shippingInfo        Json
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  user                User?       @relation(fields: [userId], references: [id])
+  items               OrderItem[]
+  payment             Payment?
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id           Int     @id @default(autoincrement())
+  orderId      Int
+  productId    Int
+  quantity     Int
+  price        Decimal @db.Decimal(10, 2)
+  productName  String
+  productImage String?
+  order        Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product      Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model Payment {
+  id             Int           @id @default(autoincrement())
+  orderId        Int           @unique
+  amount         Decimal       @db.Decimal(10, 2)
+  status         PaymentStatus @default(PENDING)
+  paymentMethod  String?
+  mpPaymentId    String?       @unique
+  mpPreferenceId String?       @unique
+  mpStatus       String?
+  mpStatusDetail String?
+  mpPaymentType  String?
+  mpInstallments Int?
+  webhookData    Json?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  order          Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([mpPaymentId])
+  @@index([mpPreferenceId])
+  @@index([status])
+}
+
+enum OrderStatus {
+  PENDING
+  PAYMENT_PENDING
+  PAID
+  PREPARING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  REFUNDED
+  IN_PROCESS
+  IN_MEDIATION
+  CHARGED_BACK
+}

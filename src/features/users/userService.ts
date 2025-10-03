@@ -269,7 +269,7 @@ export const userService = {
     }
   },
 
-  // Obtener todos los usuarios (solo para admin)
+  // Obtener todos los usuarios 
   async getAllUsers(): Promise<UserProfile[]> {
     try {
       const users = await prisma.user.findMany({
