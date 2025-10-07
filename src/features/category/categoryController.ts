@@ -15,7 +15,11 @@ export const categoryController = {
       // Convertir DTO a formato del servicio
       const categoryData: CreateCategoryInput = {
         name: data.name,
-        description: data.description
+        description: data.description,
+        baseWeight: data.baseWeight,
+        packageWidth: data.packageWidth,
+        packageHeight: data.packageHeight,
+        packageLength: data.packageLength
       };
 
       const category = await categoryService.createCategory(categoryData);
@@ -113,6 +117,10 @@ export const categoryController = {
       const updateData: UpdateCategoryInput = {
         name: data.name,
         description: data.description,
+        baseWeight: data.baseWeight,
+        packageWidth: data.packageWidth,
+        packageHeight: data.packageHeight,
+        packageLength: data.packageLength
       };
 
       const category = await categoryService.updateCategory(id, updateData);

@@ -5,6 +5,7 @@ import categoryRoutes from '../features/category/categoryRoutes';
 import userRoutes from '../features/users/userRoutes';
 import orderRoutes from '../features/orders/orderRoutes';
 import webhooksRoutes from '../features/webhooks/webhookRoutes';
+import deliveryRoutes from '../features/delivery/deliveryRoutes';
 
 
 const app = express();
@@ -30,5 +31,6 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/users', userRoutes); 
 app.use('/api/orders', orderRoutes);
 app.use('/api/webhooks', webhooksRoutes); 
+app.use('/api/delivery', deliveryRoutes); 
 
 export default app;

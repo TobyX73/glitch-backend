@@ -3,12 +3,20 @@
 export interface CreateCategoryInput {
   name: string;
   description?: string;
+  baseWeight?: number;
+  packageWidth?: number;
+  packageHeight?: number;
+  packageLength?: number;
 }
 
 export interface UpdateCategoryInput {
   name?: string;
   description?: string;
   isActive?: boolean;
+  baseWeight?: number;
+  packageWidth?: number;
+  packageHeight?: number;
+  packageLength?: number;
 }
 
 // Es lo que devuelve el back al front al crear, actualizar o traer categorías

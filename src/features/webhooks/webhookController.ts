@@ -2,7 +2,6 @@ import { Request, Response } from 'express';
 import { webhookService } from './webhookService';
 
 export const webhookController = {
-  // Webhook de MercadoPago
   async mercadoPago(req: Request, res: Response) {
     try {
       console.log('Webhook de MercadoPago recibido:', {
@@ -17,7 +16,6 @@ export const webhookController = {
         return res.status(200).json({ message: 'Webhook procesado - tipo no relevante' });
       }
 
-      // Procesar el webhook
       const result = await webhookService.processWebhook(req.body);
 
       console.log('Webhook procesado exitosamente:', result);
@@ -28,7 +26,7 @@ export const webhookController = {
         data: result
       });
     } catch (error) {
-      console.error('❌ Error procesando webhook de MercadoPago:', error);
+      console.error('Error procesando webhook de MercadoPago:', error);
       
       res.status(500).json({
         success: false,

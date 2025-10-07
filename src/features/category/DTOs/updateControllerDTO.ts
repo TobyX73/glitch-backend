@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, MinLength, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, MinLength, MaxLength, IsNumber, Min } from 'class-validator';
 
 export class UpdateCategoryDto {
   @IsOptional()
@@ -12,4 +12,24 @@ export class UpdateCategoryDto {
   @MaxLength(500, { message: 'La descripción no puede exceder 500 caracteres' })
   description?: string;
 
+  // Campos de envío
+  @IsOptional()
+  @IsNumber({}, { message: 'El peso base debe ser un número' })
+  @Min(0, { message: 'El peso base no puede ser negativo' })
+  baseWeight?: number;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'El ancho del paquete debe ser un número' })
+  @Min(0, { message: 'El ancho del paquete no puede ser negativo' })
+  packageWidth?: number;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'El alto del paquete debe ser un número' })
+  @Min(0, { message: 'El alto del paquete no puede ser negativo' })
+  packageHeight?: number;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'el largo del paquete debe ser un número' })
+  @Min(0, { message: 'El largo del paquete no puede ser negativo' })
+  packageLength?: number;
 }
