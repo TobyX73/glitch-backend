@@ -37,7 +37,7 @@ class DeliveryServiceClass {
   // Implementar endpoint de sucursales usando RapidAPI
   async getBranches(provincia?: string): Promise<any[]> {
     try {
-      console.log('📍 Obteniendo sucursales de Correo Argentino via RapidAPI...');
+      console.log('Obteniendo sucursales de Correo Argentino via RapidAPI...');
       
       // Construir URL base
       let url = `${RAPIDAPI_BASE_URL}/obtenerSucursales`;
@@ -45,7 +45,7 @@ class DeliveryServiceClass {
       // Si se proporciona provincia, agregar filtro por provincia
       if (provincia) {
         url += `?provincia=${provincia}`;
-        console.log(`🗺️ Filtrando por provincia ${provincia}`);
+        console.log(`Filtrando por provincia ${provincia}`);
       }
       
       const response = await fetch(url, {
@@ -58,12 +58,12 @@ class DeliveryServiceClass {
       }
       
       const branches = await response.json() as any[];
-      console.log(`✅ Obtenidas ${branches.length} sucursales`);
+      console.log(`Obtenidas ${branches.length} sucursales`);
       
       return branches;
       
     } catch (error) {
-      console.error('❌ Error obteniendo sucursales:', error);
+      console.error('Error obteniendo sucursales:', error);
       throw new Error(`Error obteniendo sucursales: ${error instanceof Error ? error.message : 'Error desconocido'}`);
     }
   }
@@ -153,7 +153,7 @@ class DeliveryServiceClass {
     provinciaDestino: string,
     peso: number
   ) {
-    console.log(`💰 Cotizando envío con RapidAPI:`, {
+    console.log(`Cotizando envío con RapidAPI:`, {
       origen: ORIGIN_POSTAL_CODE,
       destino: cpDestino,
       provinciaDestino,
@@ -171,7 +171,7 @@ class DeliveryServiceClass {
         peso: peso.toString()
       };
 
-      console.log('📤 Enviando solicitud de cotización:', requestBody);
+      console.log('Enviando solicitud de cotización:', requestBody);
 
       const response = await fetch(url, {
         method: 'POST',
@@ -184,16 +184,16 @@ class DeliveryServiceClass {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ Error HTTP:', response.status, errorText);
+        console.error('Error HTTP:', response.status, errorText);
         throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
       }
 
       const quotationData = await response.json();
-      console.log('✅ Cotización obtenida exitosamente:', quotationData);
+      console.log('Cotización obtenida exitosamente:', quotationData);
 
       return quotationData;
     } catch (error) {
-      console.error('❌ Error llamando a RapidAPI Correo Argentino:', error);
+      console.error('Error llamando a RapidAPI Correo Argentino:', error);
       throw new Error(`Error de conexión con RapidAPI: ${error instanceof Error ? error.message : 'Error desconocido'}`);
     }
   }
@@ -311,7 +311,7 @@ class DeliveryServiceClass {
 
   // Test de configuración RapidAPI
   public testRapidAPIConfig(): void {
-    console.log('🔧 Configuración RapidAPI:');
+    console.log('Configuración RapidAPI:');
     console.log('- RAPIDAPI_KEY:', RAPIDAPI_KEY ? '[CONFIGURADO]' : '[NO CONFIGURADO]');
     console.log('- RAPIDAPI_BASE_URL:', RAPIDAPI_BASE_URL);
     console.log('- RAPIDAPI_HOST:', RAPIDAPI_HOST);
@@ -321,7 +321,7 @@ class DeliveryServiceClass {
   public async testRapidAPI(): Promise<any> {
     const results: any[] = [];
     
-    console.log('🧪 === TEST COMPLETO DE RAPIDAPI ===');
+    console.log('=== TEST COMPLETO DE RAPIDAPI ===');
     console.log('Variables de entorno:');
     console.log('- RAPIDAPI_KEY:', RAPIDAPI_KEY ? '[CONFIGURADO]' : '[NO CONFIGURADO]');
     console.log('- RAPIDAPI_BASE_URL:', RAPIDAPI_BASE_URL);
@@ -334,9 +334,9 @@ class DeliveryServiceClass {
     ];
     
     for (const endpoint of testEndpoints) {
-      console.log(`\n🔍 Probando endpoint: ${endpoint.description}`);
+      console.log(`\nProbando endpoint: ${endpoint.description}`);
       const fullUrl = `${RAPIDAPI_BASE_URL}${endpoint.path}`;
-      console.log(`📡 URL: ${fullUrl}`);
+      console.log(`URL: ${fullUrl}`);
       
       try {
         const response = await fetch(fullUrl, {
@@ -344,14 +344,14 @@ class DeliveryServiceClass {
           headers: this.getRapidAPIHeaders()
         });
         
-        console.log(`📊 Respuesta: ${response.status} ${response.statusText}`);
+        console.log(`Respuesta: ${response.status} ${response.statusText}`);
         
         let responseBody = '';
         try {
           responseBody = await response.text();
-          console.log(`📄 Body (primeros 200 chars): ${responseBody.substring(0, 200)}`);
+          console.log(`Body (primeros 200 chars): ${responseBody.substring(0, 200)}`);
         } catch (e) {
-          console.log('❌ No se pudo leer el body');
+          console.log('No se pudo leer el body');
         }
         
         results.push({
@@ -364,11 +364,11 @@ class DeliveryServiceClass {
         });
         
         if (response.status === 200) {
-          console.log('✅ ¡ÉXITO! Este endpoint funciona');
+          console.log('¡ÉXITO! Este endpoint funciona');
         }
         
       } catch (error) {
-        console.log(`❌ Error: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+        console.log(`Error: ${error instanceof Error ? error.message : 'Error desconocido'}`);
         results.push({
           endpoint: endpoint.description,
           url: fullUrl,
@@ -393,24 +393,24 @@ class DeliveryServiceClass {
     const hasConnError = results.some(r => r.error);
     
     if (has401 || has403) {
-      recommendations.push('❌ Clave de RapidAPI incorrecta o sin acceso');
-      recommendations.push('💡 Verifica tu X-RapidAPI-Key en el dashboard de RapidAPI');
-      recommendations.push('📧 Asegúrate de estar suscrito al API de Correo Argentino');
+      recommendations.push('Clave de RapidAPI incorrecta o sin acceso');
+      recommendations.push('Verifica tu X-RapidAPI-Key en el dashboard de RapidAPI');
+      recommendations.push('Asegúrate de estar suscrito al API de Correo Argentino');
     }
     
     if (has404) {
-      recommendations.push('❌ URL de API incorrecta o endpoint no encontrado');
-      recommendations.push('📖 Revisa la documentación de RapidAPI para los endpoints correctos');
+      recommendations.push('URL de API incorrecta o endpoint no encontrado');
+      recommendations.push('Revisa la documentación de RapidAPI para los endpoints correctos');
     }
     
     if (hasConnError) {
-      recommendations.push('🌐 Problemas de conectividad');
-      recommendations.push('🔒 Verifica tu conexión a internet');
+      recommendations.push('Problemas de conectividad');
+      recommendations.push('Verifica tu conexión a internet');
     }
     
     if (!RAPIDAPI_KEY) {
-      recommendations.push('⚠️ RAPIDAPI_KEY no está configurada');
-      recommendations.push('🔧 Agrega RAPIDAPI_KEY a tus variables de entorno');
+      recommendations.push('RAPIDAPI_KEY no está configurada');
+      recommendations.push('Agrega RAPIDAPI_KEY a tus variables de entorno');
     }
     
     return recommendations;
@@ -418,12 +418,12 @@ class DeliveryServiceClass {
 
   // Test básico de RapidAPI (para debugging)
   public async testRapidAPIBasic(): Promise<any> {
-    console.log('🧪 === TEST BÁSICO DE RAPIDAPI ===');
+    console.log('=== TEST BÁSICO DE RAPIDAPI ===');
     this.testRapidAPIConfig();
     
     // Primero probar si la API responde
     try {
-      console.log('🌐 Probando conectividad básica...');
+      console.log('Probando conectividad básica...');
       const testUrl = `${RAPIDAPI_BASE_URL}/sucursales`;
       
       const response = await fetch(testUrl, {
@@ -431,11 +431,11 @@ class DeliveryServiceClass {
         headers: this.getRapidAPIHeaders()
       });
       
-      console.log('📡 Respuesta de conectividad:', response.status, response.statusText);
+      console.log('Respuesta de conectividad:', response.status, response.statusText);
       
       // Intentar leer el body para más información
       const body = await response.text();
-      console.log('📄 Body de respuesta (primeros 200 chars):', body.substring(0, 200));
+      console.log('Body de respuesta (primeros 200 chars):', body.substring(0, 200));
       
       if (response.ok) {
         return {
@@ -454,7 +454,7 @@ class DeliveryServiceClass {
       }
       
     } catch (error) {
-      console.log('❌ Error de conectividad:', error);
+      console.log('Error de conectividad:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Error desconocido'

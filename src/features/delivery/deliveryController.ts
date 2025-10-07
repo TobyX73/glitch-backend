@@ -241,7 +241,7 @@ export const deliveryController = {
       const RAPIDAPI_KEY = process.env.RAPID_API_KEY || '1557f620a2msh3dff353e22c05e0p1ae3acjsnf751e97c7296';
       const provincia = req.params.provincia || 'AR-B';
       
-      console.log(`📍 Solicitando sucursales para provincia: ${provincia}`);
+      console.log(`Solicitando sucursales para provincia: ${provincia}`);
       
       const url = `https://correo-argentino1.p.rapidapi.com/obtenerSucursales?provincia=${provincia}`;
       

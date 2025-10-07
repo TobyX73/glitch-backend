@@ -10,17 +10,17 @@ export const orderController = {
   // Crear orden desde carrito (checkout)
   async checkout(req: Request, res: Response) {
     try {
-      console.log('📦 Datos recibidos en checkout:', JSON.stringify(req.body, null, 2));
+      console.log('Datos recibidos en checkout:', JSON.stringify(req.body, null, 2));
       
       // Validar datos de entrada con DTO
       const checkoutDTO = plainToClass(CheckoutDTO, req.body);
-      console.log('🔄 DTO transformado:', JSON.stringify(checkoutDTO, null, 2));
+      console.log('DTO transformado:', JSON.stringify(checkoutDTO, null, 2));
       
       const errors = await validate(checkoutDTO);
-      console.log('🚨 Errores de validación:', errors.length);
+      console.log('Errores de validación:', errors.length);
 
       if (errors.length > 0) {
-        console.log('❌ Detalles de errores:', errors.map(error => ({
+        console.log('Detalles de errores:', errors.map(error => ({
           property: error.property,
           value: error.value,
           constraints: error.constraints,
@@ -363,7 +363,7 @@ export const orderController = {
   // Test checkout sin validaciones (para debugging)
   async testCheckout(req: Request, res: Response) {
     try {
-      console.log('🧪 TEST CHECKOUT - Datos recibidos:', JSON.stringify(req.body, null, 2));
+      console.log('TEST CHECKOUT - Datos recibidos:', JSON.stringify(req.body, null, 2));
       
       res.status(200).json({
         success: true,

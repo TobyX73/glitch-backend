@@ -112,7 +112,7 @@ export const orderService = {
   // Crear preferencia de MercadoPago
   async createMercadoPagoPreference(orderId: number) {
     try {
-      console.log('🔍 Buscando orden con ID:', orderId);
+      console.log('Buscando orden con ID:', orderId);
       
       const order = await prisma.order.findUnique({
         where: { id: orderId },
@@ -127,9 +127,9 @@ export const orderService = {
         }
       });
 
-      console.log('📦 Orden encontrada:', order ? 'SÍ' : 'NO');
+      console.log('Orden encontrada:', order ? 'SÍ' : 'NO');
       if (order) {
-        console.log('📊 Detalles de la orden:', {
+        console.log('Detalles de la orden:', {
           id: order.id,
           status: order.status,
           itemsCount: order.items?.length || 0,
@@ -147,7 +147,7 @@ export const orderService = {
       }
 
       // Crear items para MercadoPago
-      console.log('🛍️ Items de la orden:', order.items);
+      console.log('Items de la orden:', order.items);
       
       const items = order.items.map(item => ({
         id: item.productId.toString(),
@@ -158,7 +158,7 @@ export const orderService = {
         picture_url: item.productImage || undefined
       }));
 
-      console.log('💳 Items para MercadoPago:', items);
+      console.log('Items para MercadoPago:', items);
 
       // Configurar preferencia
       const preferenceData = {
