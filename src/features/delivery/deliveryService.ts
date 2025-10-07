@@ -1,6 +1,6 @@
 import { prisma } from '../../config/database';
 import {
-  DeliveryQuoteRequest,      // Si se proporciona código postal, agregar filtro por provincia
+  DeliveryQuoteRequest,     
   DeliveryQuoteResponse,
   MiCorreoQuoteRequest,
   MiCorreoQuoteResponse,
@@ -13,8 +13,8 @@ import {
 // RapidAPI Configuration for Correo Argentino
 const RAPIDAPI_BASE_URL = 'https://correo-argentino1.p.rapidapi.com';
 const RAPIDAPI_HOST = 'correo-argentino1.p.rapidapi.com';
-const RAPIDAPI_KEY = process.env.RAPID_API_KEY || '1557f620a2msh3dff353e22c05e0p1ae3acjsnf751e97c7296';
-const ORIGIN_POSTAL_CODE = process.env.ORIGIN_POSTAL_CODE || '3300'; 
+const RAPIDAPI_KEY = process.env.RAPID_API_KEY;
+const ORIGIN_POSTAL_CODE = process.env.ORIGIN_POSTAL_CODE; 
 
 const CACHE_TTL_QUOTES = 15 * 60 * 1000; // 15 minutos para pedidos
 const CACHE_TTL_BRANCHES = 60 * 60 * 1000; // 1 hora para sucursales
