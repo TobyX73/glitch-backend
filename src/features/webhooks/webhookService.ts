@@ -69,10 +69,10 @@ export const webhookService = {
         let newOrderStatus = order.status;
         if (paymentDetails.status === 'approved') {
           newOrderStatus = 'PAID';
-          // Reducir stock 
-          await productService.reduceStock(order.id);
+          // Nota: El stock ya fue decrementado al crear la orden
         } else if (paymentDetails.status === 'rejected' || paymentDetails.status === 'cancelled') {
           newOrderStatus = 'CANCELLED';
+          // TODO: Considerar devolver stock si la orden fue cancelada
         }
 
         await prisma.order.update({
