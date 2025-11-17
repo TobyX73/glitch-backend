@@ -1,0 +1,373 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.orderService = void 0;
+const mercadopago_1 = require("mercadopago");
+const database_1 = require("../../config/database");
+// Configuración de MercadoPago
+const client = new mercadopago_1.MercadoPagoConfig({
+    accessToken: process.env.MP_ACCESS_TOKEN || '',
+    options: { timeout: 5000 }
+});
+// URLs separadas para frontend y backend
+const frontendURL = process.env.FRONTEND_URL || 'https://www.google.com'; // URL temporal para testing
+const backendURL = process.env.BACKEND_URL || 'http://localhost:3000';
+const preference = new mercadopago_1.Preference(client);
+exports.orderService = {
+    // Crear orden desde carrito
+    async createOrderFromCart(data) {
+        try {
+            // Verificar stock y obtener productos con sus variantes
+            const productIds = data.items.map(item => item.productId);
+            const products = await database_1.prisma.product.findMany({
+                where: {
+                    id: { in: productIds },
+                    isActive: true
+                },
+                include: {
+                    variants: true,
+                    images: {
+                        where: { isMain: true },
+                        take: 1
+                    }
+                }
+            });
+            if (products.length !== productIds.length) {
+                throw new Error('Algunos productos no están disponibles');
+            }
+            // Verificar stock por variante
+            for (const item of data.items) {
+                const product = products.find(p => p.id === item.productId);
+                if (!product) {
+                    throw new Error(`Producto con ID ${item.productId} no encontrado`);
+                }
+                // Si el item tiene variantId o size, verificar stock de esa variante
+                let variant = null;
+                if (item.variantId) {
+                    variant = product.variants.find(v => v.id === item.variantId);
+                }
+                else if (item.size) {
+                    variant = product.variants.find(v => v.size === item.size);
+                }
+                if (!variant) {
+                    throw new Error(`Variante no encontrada para ${product.name}${item.size ? ` talla ${item.size}` : ''}`);
+                }
+                if (variant.stock < item.quantity) {
+                    throw new Error(`Stock insuficiente para ${product.name} talla ${variant.size}. Disponible: ${variant.stock}`);
+                }
+            }
+            // Calcular total
+            let total = 0;
+            for (const item of data.items) {
+                const product = products.find(p => p.id === item.productId);
+                total += Number(product.basePrice) * item.quantity;
+            }
+            // Generar referencia externa única
+            const mpExternalReference = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            // Crear orden en una transacción
+            const order = await database_1.prisma.$transaction(async (tx) => {
+                // Crear la orden con shippingInfo como JSON
+                const newOrder = await tx.order.create({
+                    data: {
+                        userId: data.userId,
+                        guestEmail: data.guestEmail,
+                        guestName: data.guestName,
+                        total: total,
+                        status: 'PENDING',
+                        mpExternalReference,
+                        notes: data.notes,
+                        shippingInfo: {
+                            street: data.shippingAddress.street,
+                            city: data.shippingAddress.city,
+                            state: data.shippingAddress.state,
+                            zipCode: data.shippingAddress.zipCode,
+                            country: data.shippingAddress.country || 'Argentina'
+                        }
+                    }
+                });
+                // Crear los items de la orden y descontar stock
+                const orderItems = await Promise.all(data.items.map(async (item) => {
+                    const product = products.find(p => p.id === item.productId);
+                    // Encontrar la variante
+                    let variant = null;
+                    if (item.variantId) {
+                        variant = product.variants.find(v => v.id === item.variantId);
+                    }
+                    else if (item.size) {
+                        variant = product.variants.find(v => v.size === item.size);
+                    }
+                    // Descontar stock de la variante
+                    if (variant) {
+                        await tx.productVariant.update({
+                            where: { id: variant.id },
+                            data: {
+                                stock: {
+                                    decrement: item.quantity
+                                }
+                            }
+                        });
+                    }
+                    const mainImage = product.images[0]?.url || null;
+                    return tx.orderItem.create({
+                        data: {
+                            orderId: newOrder.id,
+                            productId: item.productId,
+                            variantId: variant?.id,
+                            size: variant?.size,
+                            quantity: item.quantity,
+                            price: Number(product.basePrice),
+                            productName: product.name,
+                            productImage: mainImage
+                        }
+                    });
+                }));
+                // Crear registro de pago
+                await tx.payment.create({
+                    data: {
+                        orderId: newOrder.id,
+                        amount: total,
+                        status: 'PENDING'
+                    }
+                });
+                return { ...newOrder, items: orderItems };
+            });
+            return this.formatOrderResponse(order);
+        }
+        catch (error) {
+            throw new Error(`Error al crear orden: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+        }
+    },
+    // Crear preferencia de MercadoPago
+    async createMercadoPagoPreference(orderId) {
+        try {
+            console.log('Buscando orden con ID:', orderId);
+            const order = await database_1.prisma.order.findUnique({
+                where: { id: orderId },
+                include: {
+                    items: {
+                        include: {
+                            product: true
+                        }
+                    },
+                    payment: true,
+                    user: true
+                }
+            });
+            console.log('Orden encontrada:', order ? 'SÍ' : 'NO');
+            if (order) {
+                console.log('Detalles de la orden:', {
+                    id: order.id,
+                    status: order.status,
+                    itemsCount: order.items?.length || 0,
+                    hasUser: !!order.user,
+                    guestEmail: order.guestEmail
+                });
+            }
+            if (!order) {
+                throw new Error('Orden no encontrada');
+            }
+            if (order.status !== 'PENDING') {
+                throw new Error(`La orden no está en estado válido para crear pago. Estado actual: ${order.status}`);
+            }
+            // Crear items para MercadoPago
+            console.log('Items de la orden:', order.items);
+            const items = order.items.map(item => ({
+                id: item.productId.toString(),
+                title: item.productName,
+                quantity: item.quantity,
+                unit_price: Number(item.price),
+                currency_id: 'ARS',
+                picture_url: item.productImage || undefined
+            }));
+            console.log('Items para MercadoPago:', items);
+            // Configurar preferencia
+            const preferenceData = {
+                items,
+                payer: {
+                    name: order.guestName || `${order.user?.firstName} ${order.user?.lastName}`,
+                    email: order.guestEmail || order.user?.email
+                },
+                back_urls: {
+                    success: `${frontendURL}/orders/${order.id}/success`,
+                    failure: `${frontendURL}/orders/${order.id}/failure`,
+                    pending: `${frontendURL}/orders/${order.id}/pending`
+                },
+                external_reference: order.mpExternalReference,
+                notification_url: `${backendURL}/api/webhooks/mercadopago`,
+                statement_descriptor: 'GLITCH-STORE',
+                expires: true,
+                expiration_date_from: new Date().toISOString(),
+                expiration_date_to: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 horas
+            };
+            console.log('Configuración de preferencia:', JSON.stringify(preferenceData, null, 2));
+            console.log('MP_ACCESS_TOKEN configurado:', !!process.env.MP_ACCESS_TOKEN);
+            const mpPreference = await preference.create({ body: preferenceData });
+            // Actualizar payment con preference ID
+            await database_1.prisma.payment.update({
+                where: { orderId },
+                data: {
+                    mpPreferenceId: mpPreference.id,
+                    status: 'PENDING'
+                }
+            });
+            // Actualizar orden status
+            await database_1.prisma.order.update({
+                where: { id: orderId },
+                data: { status: 'PAYMENT_PENDING' }
+            });
+            return {
+                preferenceId: mpPreference.id,
+                initPoint: mpPreference.init_point,
+                sandboxInitPoint: mpPreference.sandbox_init_point
+            };
+        }
+        catch (error) {
+            console.error('Error detallado al crear preferencia:', error);
+            console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack available');
+            if (error instanceof Error) {
+                throw new Error(`Error al crear preferencia de MercadoPago: ${error.message}`);
+            }
+            throw new Error(`Error al crear preferencia de MercadoPago: ${JSON.stringify(error)}`);
+        }
+    },
+    // Obtener orden por ID
+    async getOrderById(id) {
+        try {
+            const order = await database_1.prisma.order.findUnique({
+                where: { id },
+                include: {
+                    items: {
+                        include: {
+                            product: true
+                        }
+                    },
+                    payment: true,
+                    user: true
+                }
+            });
+            if (!order) {
+                throw new Error('Orden no encontrada');
+            }
+            return this.formatOrderResponse(order);
+        }
+        catch (error) {
+            throw new Error(`Error al obtener orden: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+        }
+    },
+    // Obtener órdenes con filtros
+    async getOrders(params = {}) {
+        try {
+            const page = params.page || 1;
+            const limit = params.limit || 12;
+            const skip = (page - 1) * limit;
+            const where = {};
+            if (params.status) {
+                where.status = params.status;
+            }
+            if (params.userId) {
+                where.userId = params.userId;
+            }
+            if (params.startDate || params.endDate) {
+                where.createdAt = {};
+                if (params.startDate)
+                    where.createdAt.gte = new Date(params.startDate);
+                if (params.endDate)
+                    where.createdAt.lte = new Date(params.endDate);
+            }
+            const [orders, total] = await Promise.all([
+                database_1.prisma.order.findMany({
+                    where,
+                    include: {
+                        items: {
+                            include: {
+                                product: true
+                            }
+                        },
+                        payment: true,
+                        user: true
+                    },
+                    skip,
+                    take: limit,
+                    orderBy: {
+                        createdAt: 'desc'
+                    }
+                }),
+                database_1.prisma.order.count({ where })
+            ]);
+            const ordersFormatted = orders.map(order => this.formatOrderResponse(order));
+            return {
+                orders: ordersFormatted,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    pages: Math.ceil(total / limit),
+                    hasNext: page < Math.ceil(total / limit),
+                    hasPrev: page > 1
+                }
+            };
+        }
+        catch (error) {
+            throw new Error(`Error al obtener órdenes: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+        }
+    },
+    // Actualizar estado de orden
+    async updateOrderStatus(id, status, notes) {
+        try {
+            const order = await database_1.prisma.order.update({
+                where: { id },
+                data: {
+                    status: status,
+                    notes: notes || undefined,
+                    updatedAt: new Date()
+                },
+                include: {
+                    items: {
+                        include: {
+                            product: true
+                        }
+                    },
+                    payment: true,
+                    user: true
+                }
+            });
+            return this.formatOrderResponse(order);
+        }
+        catch (error) {
+            throw new Error(`Error al actualizar orden: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+        }
+    },
+    // Formatear respuesta de orden
+    formatOrderResponse(order) {
+        return {
+            id: order.id,
+            userId: order.userId,
+            guestEmail: order.guestEmail,
+            guestName: order.guestName,
+            total: Number(order.total),
+            status: order.status,
+            mpExternalReference: order.mpExternalReference,
+            notes: order.notes,
+            shippingInfo: order.shippingInfo,
+            createdAt: order.createdAt,
+            updatedAt: order.updatedAt,
+            items: order.items?.map((item) => ({
+                id: item.id,
+                productId: item.productId,
+                quantity: item.quantity,
+                price: Number(item.price),
+                productName: item.productName,
+                productImage: item.productImage
+            })) || [],
+            payment: order.payment ? {
+                id: order.payment.id,
+                amount: Number(order.payment.amount),
+                status: order.payment.status,
+                paymentMethod: order.payment.paymentMethod,
+                mpPaymentId: order.payment.mpPaymentId,
+                mpPreferenceId: order.payment.mpPreferenceId,
+                mpStatus: order.payment.mpStatus,
+                createdAt: order.payment.createdAt
+            } : undefined
+        };
+    }
+};

@@ -202,11 +202,11 @@ export const userService = {
           completedOrders
         },
         address: lastOrder?.shippingInfo ? {
-          street: lastOrder.shippingInfo.street,
-          city: lastOrder.shippingInfo.city,
-          state: lastOrder.shippingInfo.state,
-          zipCode: lastOrder.shippingInfo.zipCode,
-          country: lastOrder.shippingInfo.country || 'Argentina'
+          street: (lastOrder.shippingInfo as any).street,
+          city: (lastOrder.shippingInfo as any).city,
+          state: (lastOrder.shippingInfo as any).state,
+          zipCode: (lastOrder.shippingInfo as any).zipCode,
+          country: (lastOrder.shippingInfo as any).country || 'Argentina'
         } : undefined,
         orderHistory
       };
