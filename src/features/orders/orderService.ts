@@ -382,6 +382,12 @@ export const orderService = {
     return {
       id: order.id,
       userId: order.userId,
+      user: order.user ? {
+        id: order.user.id,
+        firstName: order.user.firstName,
+        lastName: order.user.lastName,
+        email: order.user.email
+      } : undefined,
       guestEmail: order.guestEmail,
       guestName: order.guestName,
       total: Number(order.total),
@@ -394,6 +400,8 @@ export const orderService = {
       items: order.items?.map((item: any) => ({
         id: item.id,
         productId: item.productId,
+        variantId: item.variantId,
+        size: item.size,
         quantity: item.quantity,
         price: Number(item.price),
         productName: item.productName,

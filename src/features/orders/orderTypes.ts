@@ -23,9 +23,17 @@ export interface ShippingAddressInput {
   country?: string;
 }
 
+export interface UserResponse {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
 export interface OrderResponse {
   id: number;
   userId?: number;
+  user?: UserResponse;
   guestEmail?: string;
   guestName?: string;
   total: number;

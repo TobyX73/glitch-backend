@@ -27,7 +27,9 @@ export const uploadService = {
         format: result.format
       };
     } catch (error) {
-      throw new Error(`Error al subir imagen: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+      console.error('❌ Error completo de Cloudinary:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      throw new Error(`Error al subir imagen: ${errorMessage}`);
     }
   },
 
