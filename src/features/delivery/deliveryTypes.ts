@@ -33,6 +33,7 @@ export interface DeliveryQuoteResponse {
       modalidad: string;
     };
   };
+  rawApiResponse?: any; // Respuesta completa de la API para debugging
   error?: string;
 }
 
@@ -108,3 +109,25 @@ export interface DeliveryCache {
 }
 
 export type DeliveryErrorType = 'PACKAGING_ERROR' | 'MICORREO_API_ERROR' | 'VALIDATION_ERROR';
+
+// Interfaces para mapeo de códigos postales
+export interface PostalCodeRange {
+  start: number;
+  end: number;
+  description: string;
+}
+
+export interface ProvinceMapping {
+  province: string;
+  code: string;
+  ranges: PostalCodeRange[];
+}
+
+export interface PostalCodeMappingData {
+  mappings: ProvinceMapping[];
+  defaultProvince: {
+    code: string;
+    name: string;
+    reason: string;
+  };
+}

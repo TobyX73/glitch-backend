@@ -56,35 +56,26 @@ export const deliveryController = {
     }
   },
 
-  // Obtener sucursales por código postal
+  // Obtener sucursales por provincia
   async getBranches(req: Request, res: Response) {
     try {
-      console.log('Solicitud de sucursales para CP:', req.params.postalCode);
-
-      // Validar parámetros
-      const paramsDTO = plainToClass(BranchesParamsDTO, req.params);
-      const errors = await validate(paramsDTO);
-
-      if (errors.length > 0) {
-        const errorMessages = errors.map(error => 
-          Object.values(error.constraints || {}).join(', ')
-        ).join('; ');
-        
+      const provincia = req.params.provincia || req.query.provincia as string;
+      
+      if (!provincia) {
         return res.status(400).json({
           success: false,
-          message: 'Código postal inválido',
-          errors: errorMessages
+          message: 'Provincia es requerida',
+          example: 'GET /api/delivery/branches/Buenos Aires'
         });
       }
 
-      const postalCode = req.params.postalCode;
-
-      // Obtener sucursales
-      const branches = await deliveryService.getBranches(postalCode);
+      console.log(`Obteniendo sucursales para provincia: ${provincia}`);
+      
+      const branches = await deliveryService.getBranchesFromAPI(provincia);
 
       res.status(200).json({
         success: true,
-        message: `Sucursales encontradas para CP ${postalCode}`,
+        message: `Sucursales encontradas para ${provincia}`,
         data: branches
       });
     } catch (error) {
@@ -98,60 +89,19 @@ export const deliveryController = {
     }
   },
 
-  // Endpoint de prueba para verificar packaging
-  async testPackaging(req: Request, res: Response) {
-    try {
-      console.log('Test de packaging:', req.body);
-
-      const { items } = req.body;
-
-      if (!items || !Array.isArray(items)) {
-        return res.status(400).json({
-          success: false,
-          message: 'Items requeridos para test de packaging'
-        });
-      }
-
-      const packaging = await deliveryService.calculatePackaging(items);
-
-      res.status(200).json({
-        success: true,
-        message: 'Packaging calculado exitosamente',
-        data: {
-          items,
-          packaging,
-          summary: {
-            totalWeight: `${packaging.peso} kg`,
-            dimensions: `${packaging.ancho} x ${packaging.alto} x ${packaging.largo} cm`,
-            volume: `${(packaging.ancho * packaging.alto * packaging.largo / 1000)} litros`
-          }
-        }
-      });
-    } catch (error) {
-      console.error('Error en test de packaging:', error);
-
-      res.status(500).json({
-        success: false,
-        message: 'Error en test de packaging',
-        error: error instanceof Error ? error.message : 'Error desconocido'
-      });
-    }
-  },
-
-  // Estadísticas de cache 
+  // Estadísticas de cache
   async getCacheStats(req: Request, res: Response) {
     try {
-      const stats = deliveryService.getCacheStats();
-
+      const cacheStats = deliveryService.getCacheStats();
+      
       res.status(200).json({
         success: true,
         message: 'Estadísticas de cache obtenidas',
-        data: {
-          ...stats,
-          timestamp: new Date().toISOString()
-        }
+        data: cacheStats
       });
     } catch (error) {
+      console.error('Error obteniendo estadísticas:', error);
+      
       res.status(500).json({
         success: false,
         message: 'Error obteniendo estadísticas de cache',
@@ -164,12 +114,14 @@ export const deliveryController = {
   async clearCache(req: Request, res: Response) {
     try {
       deliveryService.clearExpiredCache();
-
+      
       res.status(200).json({
         success: true,
         message: 'Cache limpiado exitosamente'
       });
     } catch (error) {
+      console.error('Error limpiando cache:', error);
+      
       res.status(500).json({
         success: false,
         message: 'Error limpiando cache',
@@ -178,100 +130,61 @@ export const deliveryController = {
     }
   },
 
-  // Test de configuración RapidAPI (debug)
-  async testRapidAPIConfig(req: Request, res: Response) {
+  // Calcular precio de envío por código postal
+  async calculateShippingPrice(req: Request, res: Response) {
     try {
-      deliveryService.testRapidAPIConfig();
-
-      res.status(200).json({
-        success: true,
-        message: 'Configuración RapidAPI mostrada en consola'
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error mostrando configuración',
-        error: error instanceof Error ? error.message : 'Error desconocido'
-      });
-    }
-  },
-
-  // Test de RapidAPI completo (debug)
-  async testRapidAPI(req: Request, res: Response) {
-    try {
-      // Intentar conectar con RapidAPI
-      const result = await deliveryService.testRapidAPI();
-
-      res.status(200).json({
-        success: true,
-        message: 'Test de RapidAPI completado',
-        data: result
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error en test de RapidAPI',
-        error: error instanceof Error ? error.message : 'Error desconocido'
-      });
-    }
-  },
-
-  // Test básico de RapidAPI (debug)
-  async testRapidAPIBasic(req: Request, res: Response) {
-    try {
-      const result = await deliveryService.testRapidAPIBasic();
-
-      res.status(200).json({
-        success: true,
-        message: 'Test básico de RapidAPI completado',
-        data: result
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error en test básico de RapidAPI',
-        error: error instanceof Error ? error.message : 'Error desconocido'
-      });
-    }
-  },
-
-  // Obtener sucursales por provincia (directo)
-  async getBranchesByProvince(req: Request, res: Response) {
-    try {
-      const RAPIDAPI_KEY = process.env.RAPID_API_KEY || '1557f620a2msh3dff353e22c05e0p1ae3acjsnf751e97c7296';
-      const provincia = req.params.provincia || 'AR-B';
+      const { cpDestino, peso, alto, ancho, largo } = req.body;
       
-      console.log(`Solicitando sucursales para provincia: ${provincia}`);
-      
-      const url = `https://correo-argentino1.p.rapidapi.com/obtenerSucursales?provincia=${provincia}`;
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'x-rapidapi-key': RAPIDAPI_KEY,
-          'x-rapidapi-host': 'correo-argentino1.p.rapidapi.com',
-          'Accept': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error HTTP: ${response.status} - ${response.statusText}`);
+      if (!cpDestino || !peso) {
+        return res.status(400).json({
+          success: false,
+          message: 'cpDestino y peso son requeridos',
+          example: {
+            "cpDestino": "1000",
+            "peso": "2.5",
+            "alto": "10",
+            "ancho": "30",
+            "largo": "35"
+          }
+        });
       }
+
+      console.log(`Calculando precio para CP: ${cpDestino}, Peso: ${peso}kg, Dimensiones: ${alto}×${ancho}×${largo}`);
       
-      const branches = await response.json();
+      // Mapear código postal a provincia automáticamente
+      const provinciaDestino = (deliveryService as any).mapPostalCodeToProvinceCode(cpDestino);
+      
+      // Preparar dimensiones (opcionales)
+      const dimensiones = (alto && ancho && largo) ? {
+        alto: parseFloat(alto),
+        ancho: parseFloat(ancho),
+        largo: parseFloat(largo)
+      } : undefined;
+      
+      const result = await deliveryService.quoteWithRapidAPI(
+        cpDestino,
+        provinciaDestino,
+        parseFloat(peso),
+        dimensiones
+      );
       
       res.status(200).json({
         success: true,
-        message: `Sucursales encontradas para provincia ${provincia}`,
-        data: branches,
-        count: Array.isArray(branches) ? branches.length : 1
+        message: `Precio calculado para CP ${cpDestino}`,
+        input: {
+          cpDestino,
+          peso: `${peso}kg`,
+          dimensiones: dimensiones ? `${dimensiones.alto}×${dimensiones.ancho}×${dimensiones.largo} cm` : 'No especificadas',
+          provinciaDetectada: provinciaDestino
+        },
+        data: result
       });
       
     } catch (error) {
-      console.error('Error obteniendo sucursales por provincia:', error);
+      console.error('Error calculando precio:', error);
       res.status(500).json({
         success: false,
-        message: 'Error interno al obtener sucursales',
+        message: 'Error calculando precio de envío',
         error: error instanceof Error ? error.message : 'Error desconocido'
       });
     }

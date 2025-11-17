@@ -1,0 +1,173 @@
+{
+  "mappings": [
+    {
+      "province": "Buenos Aires",
+      "code": "AR-B",
+      "ranges": [
+        {"start": 1000, "end": 1499, "description": "CABA"},
+        {"start": 1500, "end": 1999, "description": "Buenos Aires Conurbano/GBA"},
+        {"start": 6000, "end": 6999, "description": "Buenos Aires interior norte/oeste"},
+        {"start": 7000, "end": 7999, "description": "Buenos Aires interior sur"}
+      ]
+    },
+    {
+      "province": "Santa Fe",
+      "code": "AR-S",
+      "ranges": [
+        {"start": 2000, "end": 2999, "description": "Santa Fe"}
+      ]
+    },
+    {
+      "province": "Córdoba",
+      "code": "AR-X",
+      "ranges": [
+        {"start": 5000, "end": 5999, "description": "Córdoba"}
+      ]
+    },
+    {
+      "province": "Entre Ríos",
+      "code": "AR-E",
+      "ranges": [
+        {"start": 3100, "end": 3199, "description": "Entre Ríos"}
+      ]
+    },
+    {
+      "province": "Corrientes",
+      "code": "AR-W",
+      "ranges": [
+        {"start": 3400, "end": 3499, "description": "Corrientes"}
+      ]
+    },
+    {
+      "province": "Misiones",
+      "code": "AR-N",
+      "ranges": [
+        {"start": 3300, "end": 3399, "description": "Misiones"}
+      ]
+    },
+    {
+      "province": "Tucumán",
+      "code": "AR-T",
+      "ranges": [
+        {"start": 4000, "end": 4199, "description": "Tucumán"}
+      ]
+    },
+    {
+      "province": "Salta",
+      "code": "AR-A",
+      "ranges": [
+        {"start": 4400, "end": 4599, "description": "Salta"}
+      ]
+    },
+    {
+      "province": "Jujuy",
+      "code": "AR-Y",
+      "ranges": [
+        {"start": 4600, "end": 4699, "description": "Jujuy"}
+      ]
+    },
+    {
+      "province": "Santiago del Estero",
+      "code": "AR-G",
+      "ranges": [
+        {"start": 4200, "end": 4299, "description": "Santiago del Estero"}
+      ]
+    },
+    {
+      "province": "Catamarca",
+      "code": "AR-K",
+      "ranges": [
+        {"start": 4700, "end": 4799, "description": "Catamarca"}
+      ]
+    },
+    {
+      "province": "La Rioja",
+      "code": "AR-F",
+      "ranges": [
+        {"start": 5300, "end": 5399, "description": "La Rioja"}
+      ]
+    },
+    {
+      "province": "San Juan",
+      "code": "AR-J",
+      "ranges": [
+        {"start": 5400, "end": 5499, "description": "San Juan"}
+      ]
+    },
+    {
+      "province": "San Luis",
+      "code": "AR-D",
+      "ranges": [
+        {"start": 5700, "end": 5799, "description": "San Luis"}
+      ]
+    },
+    {
+      "province": "Mendoza",
+      "code": "AR-M",
+      "ranges": [
+        {"start": 5500, "end": 5699, "description": "Mendoza"}
+      ]
+    },
+    {
+      "province": "La Pampa",
+      "code": "AR-L",
+      "ranges": [
+        {"start": 6300, "end": 6399, "description": "La Pampa"}
+      ]
+    },
+    {
+      "province": "Neuquén",
+      "code": "AR-Q",
+      "ranges": [
+        {"start": 8300, "end": 8399, "description": "Neuquén"}
+      ]
+    },
+    {
+      "province": "Río Negro",
+      "code": "AR-R",
+      "ranges": [
+        {"start": 8400, "end": 8599, "description": "Río Negro"}
+      ]
+    },
+    {
+      "province": "Chubut",
+      "code": "AR-U",
+      "ranges": [
+        {"start": 9000, "end": 9199, "description": "Chubut"}
+      ]
+    },
+    {
+      "province": "Santa Cruz",
+      "code": "AR-Z",
+      "ranges": [
+        {"start": 9400, "end": 9499, "description": "Santa Cruz"}
+      ]
+    },
+    {
+      "province": "Tierra del Fuego",
+      "code": "AR-V",
+      "ranges": [
+        {"start": 9410, "end": 9999, "description": "Tierra del Fuego"}
+      ]
+    },
+    {
+      "province": "Formosa",
+      "code": "AR-P",
+      "ranges": [
+        {"start": 3600, "end": 3699, "description": "Formosa"}
+      ]
+    },
+    {
+      "province": "Chaco",
+      "code": "AR-H",
+      "ranges": [
+        {"start": 3500, "end": 3599, "description": "Chaco"}
+      ]
+    }
+  ],
+  "defaultProvince": {
+    "code": "AR-B",
+    "name": "Buenos Aires",
+    "reason": "Default para códigos postales no reconocidos"
+  }
+}

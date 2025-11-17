@@ -7,8 +7,12 @@ import {
   MiCorreoBranchRequest,
   MiCorreoBranchResponse,
   DeliveryCache,
-  CacheEntry
+  CacheEntry,
+  PostalCodeMappingData
 } from './deliveryTypes';
+import * as postalCodeMappingData from './data/postalCodeMapping.json';
+
+const mappingData: PostalCodeMappingData = postalCodeMappingData as PostalCodeMappingData;
 
 // RapidAPI Configuration for Correo Argentino
 const RAPIDAPI_BASE_URL = 'https://correo-argentino1.p.rapidapi.com';
@@ -28,148 +32,208 @@ class DeliveryServiceClass {
   // Headers para RapidAPI
   private getRapidAPIHeaders() {
     return {
-      'x-rapidapi-key': RAPIDAPI_KEY,
-      'x-rapidapi-host': 'correo-argentino1.p.rapidapi.com',
-      'Accept': 'application/json'
+      'X-RapidAPI-Key': RAPIDAPI_KEY!,
+      'X-RapidAPI-Host': RAPIDAPI_HOST
     };
   }
 
-  // Implementar endpoint de sucursales usando RapidAPI
-  async getBranches(provincia?: string): Promise<any[]> {
+  // Obtener sucursales desde API
+  async getBranchesFromAPI(provincia: string): Promise<MiCorreoBranchResponse> {
+    const cacheKey = `branches_${provincia}`;
+    const cached = this.getFromCache(this.cache.branches, cacheKey);
+    if (cached) {
+      console.log('Sucursales obtenidas del cache');
+      return cached;
+    }
+
+    console.log(`Obteniendo sucursales para provincia: ${provincia}`);
+
     try {
-      console.log('Obteniendo sucursales de Correo Argentino via RapidAPI...');
-      
-      // Construir URL base
-      let url = `${RAPIDAPI_BASE_URL}/obtenerSucursales`;
-      
-      // Si se proporciona provincia, agregar filtro por provincia
-      if (provincia) {
-        url += `?provincia=${provincia}`;
-        console.log(`Filtrando por provincia ${provincia}`);
-      }
-      
+      const url = `${RAPIDAPI_BASE_URL}/sucursales`;
       const response = await fetch(url, {
         method: 'GET',
         headers: this.getRapidAPIHeaders()
       });
-      
+
       if (!response.ok) {
-        throw new Error(`Error HTTP: ${response.status} - ${response.statusText}`);
-      }
-      
-      const branches = await response.json() as any[];
-      console.log(`Obtenidas ${branches.length} sucursales`);
-      
-      return branches;
-      
-    } catch (error) {
-      console.error('Error obteniendo sucursales:', error);
-      throw new Error(`Error obteniendo sucursales: ${error instanceof Error ? error.message : 'Error desconocido'}`);
-    }
-  }
-
-  // Lógica de packaging inteligente
-  async calculatePackaging(items: Array<{ productId: number; quantity: number }>) {
-    const productIds = items.map(item => item.productId);
-    
-    const products = await prisma.product.findMany({
-      where: {
-        id: { in: productIds },
-        isActive: true
-      },
-      include: {
-        category: true
-      }
-    });
-
-    if (products.length !== productIds.length) {
-      throw new Error('Algunos productos no están disponibles');
-    }
-
-    let totalWeight = 0;
-    let maxCategory = null;
-    let maxVolume = 0;
-
-    for (const item of items) {
-      const product = products.find(p => p.id === item.productId);
-      if (!product) {
-        throw new Error(`Producto con ID ${item.productId} no encontrado`);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const category = product.category;
+      const branchResponse = await response.json() as MiCorreoBranchResponse;
       
-      // Verificar que la categoría tenga datos de envío
-      if (!category.baseWeight || !category.packageWidth || 
-          !category.packageHeight || !category.packageLength) {
-        throw new Error(
-          `La categoría "${category.name}" no tiene configurados los datos de envío`
+      // Filtrar sucursales por provincia si se especifica y si existen
+      if (provincia && branchResponse.sucursales) {
+        branchResponse.sucursales = branchResponse.sucursales.filter(
+          (sucursal) => sucursal.provincia?.toLowerCase().includes(provincia.toLowerCase())
         );
       }
 
-      // Sumar peso total
-      totalWeight += category.baseWeight * item.quantity;
+      // Guardar en cache
+      this.cache.branches.set(cacheKey, {
+        data: branchResponse,
+        timestamp: Date.now(),
+        expiresIn: CACHE_TTL_BRANCHES
+      });
 
-      // Encontrar la categoría con mayor volumen para las dimensiones del paquete
-      const volume = category.packageWidth * category.packageHeight * category.packageLength;
-      if (volume > maxVolume) {
-        maxVolume = volume;
-        maxCategory = category;
-      }
+      console.log(`Sucursales obtenidas: ${branchResponse.sucursales?.length || 0}`);
+      return branchResponse;
+    } catch (error) {
+      console.error('Error obteniendo sucursales:', error);
+      throw new Error(`Error de conexión con API de sucursales: ${error instanceof Error ? error.message : 'Error desconocido'}`);
     }
-
-    if (!maxCategory) {
-      throw new Error('No se pudieron calcular las dimensiones del paquete');
-    }
-
-    return {
-      peso: Math.round(totalWeight * 100) / 100, 
-      alto: maxCategory.packageHeight!,
-      ancho: maxCategory.packageWidth!,
-      largo: maxCategory.packageLength!
-    };
   }
 
-  // Mapear código postal a código de provincia
+  // Calcular packaging basado en dimensiones de categorías
+  async calculatePackaging(items: Array<{ productId: number; quantity: number }>) {
+    console.log('Calculando packaging para items:', items);
+    
+    try {
+      const products = await prisma.product.findMany({
+        where: {
+          id: { in: items.map(item => item.productId) }
+        },
+        include: {
+          category: true
+        }
+      });
+
+      let totalWeight = 0;
+      let totalQuantity = 0;
+      const heights: number[] = [];
+      const widths: number[] = [];
+      const lengths: number[] = [];
+
+      for (const item of items) {
+        const product = products.find(p => p.id === item.productId);
+        if (!product) {
+          console.warn(`Producto no encontrado: ${item.productId}`);
+          continue;
+        }
+
+        const category = product.category;
+        
+        // Peso desde categoría (requerido por admin)
+        const baseWeight = category?.baseWeight as number;
+        if (!baseWeight) {
+          console.error(`Categoría "${category?.name}" sin baseWeight configurado`);
+          throw new Error(`La categoría "${category?.name}" debe tener peso (baseWeight) configurado`);
+        }
+        
+        const itemWeight = baseWeight * item.quantity;
+        totalWeight += itemWeight;
+        totalQuantity += item.quantity;
+
+        // Dimensiones desde categoría (requeridas por admin)
+        if (!category?.packageHeight || !category?.packageWidth || !category?.packageLength) {
+          console.error(`Categoría "${category?.name}" sin dimensiones completas`);
+          throw new Error(`La categoría "${category?.name}" debe tener dimensiones (packageHeight, packageWidth, packageLength) configuradas`);
+        }
+        
+        heights.push(category.packageHeight as number);
+        widths.push(category.packageWidth as number);
+        lengths.push(category.packageLength as number);
+
+        console.log(`${product.name} x${item.quantity}: ${itemWeight}kg, dimensiones: ${category.packageWidth}×${category.packageHeight}×${category.packageLength}`);
+      }
+
+      // Dimensiones máximas (caja que contiene todo)
+      let alto = Math.max(...heights, 5); // Mínimo 5cm
+      const ancho = Math.max(...widths, 5);
+      const largo = Math.max(...lengths, 10);
+
+      // Ajuste inteligente para múltiples items (ropa se apila pero comprime)
+      if (totalQuantity > 3) {
+        const factor = 1 + (totalQuantity * 0.08); // 8% por item adicional
+        alto = Math.ceil(alto * factor);
+        
+        // Límite máximo razonable para ropa comprimida
+        if (alto > 30) {
+          alto = 30;
+          console.log('Altura ajustada al máximo de 30cm (ropa comprimida)');
+        }
+      }
+
+      // Packaging adicional (5% del peso para empaque - bolsa/cinta)
+      const packagingWeight = totalWeight * 0.05;
+      const finalWeight = Math.max(totalWeight + packagingWeight, 0.1); // Mínimo 100g
+
+      const volumen = alto * ancho * largo;
+      
+      const result = {
+        peso: finalWeight,
+        alto,
+        ancho,
+        largo,
+        volumen,
+        totalItems: totalQuantity
+      };
+
+      console.log('Packaging calculado:', result);
+      return result;
+    } catch (error) {
+      console.error('Error calculando packaging:', error);
+      // Fallback con valores por defecto
+      return {
+        peso: 1,
+        alto: 10,
+        ancho: 30, 
+        largo: 35,
+        volumen: 10500,
+        totalItems: 1
+      };
+    }
+  }
+
+  // Mapear código postal a código de provincia usando JSON
   private mapPostalCodeToProvinceCode(postalCode: string): string {
     const cp = parseInt(postalCode);
     
-    // Mapeo básico de códigos postales argentinos a códigos de provincia
-    if (cp >= 1000 && cp <= 1999) return 'AR-B'; // Buenos Aires
-    if (cp >= 2000 && cp <= 2999) return 'AR-S'; // Santa Fe
-    if (cp >= 3000 && cp <= 3999) return 'AR-N'; // Misiones/Entre Ríos/Corrientes
-    if (cp >= 4000 && cp <= 4999) return 'AR-T'; // Tucumán/Salta/Jujuy
-    if (cp >= 5000 && cp <= 5999) return 'AR-X'; // Córdoba
-    if (cp >= 6000 && cp <= 6999) return 'AR-L'; // La Pampa
-    if (cp >= 7000 && cp <= 7999) return 'AR-B'; // Buenos Aires interior
-    if (cp >= 8000 && cp <= 8999) return 'AR-U'; // Chubut/Río Negro
-    if (cp >= 9000 && cp <= 9999) return 'AR-Z'; // Santa Cruz/Tierra del Fuego
+    // Buscar la provincia correspondiente en el archivo de mapeo
+    for (const provinceMapping of mappingData.mappings) {
+      for (const range of provinceMapping.ranges) {
+        if (cp >= range.start && cp <= range.end) {
+          return provinceMapping.code;
+        }
+      }
+    }
     
-    return 'AR-B'; // Default Buenos Aires
+    // Si no se encuentra, usar el código por defecto
+    console.warn(`Código postal ${postalCode} no reconocido, usando ${mappingData.defaultProvince.code} por defecto`);
+    return mappingData.defaultProvince.code;
   }
 
   // Cotizar con RapidAPI de Correo Argentino (usando endpoint calcularPrecio)
   async quoteWithRapidAPI(
     cpDestino: string,
     provinciaDestino: string,
-    peso: number
+    peso: number,
+    dimensiones?: { alto: number; ancho: number; largo: number }
   ) {
     console.log(`Cotizando envío con RapidAPI:`, {
       origen: ORIGIN_POSTAL_CODE,
       destino: cpDestino,
       provinciaDestino,
-      peso
+      peso,
+      dimensiones
     });
 
     try {
       const url = `${RAPIDAPI_BASE_URL}/calcularPrecio`;
       
-      const requestBody = {
+      const requestBody: any = {
         cpOrigen: ORIGIN_POSTAL_CODE,
         cpDestino: cpDestino,
         provinciaOrigen: 'AR-N', // Asumiendo Misiones como origen por defecto
         provinciaDestino: provinciaDestino,
         peso: peso.toString()
       };
+
+      // Agregar dimensiones si están disponibles
+      if (dimensiones) {
+        requestBody.alto = dimensiones.alto.toString();
+        requestBody.ancho = dimensiones.ancho.toString();
+        requestBody.largo = dimensiones.largo.toString();
+      }
 
       console.log('Enviando solicitud de cotización:', requestBody);
 
@@ -198,12 +262,6 @@ class DeliveryServiceClass {
     }
   }
 
-
-
-
-
-
-
   // Cotizar envío completo
   async quoteDelivery(request: DeliveryQuoteRequest): Promise<DeliveryQuoteResponse> {
     // Verificar cache
@@ -222,37 +280,57 @@ class DeliveryServiceClass {
     // Mapear código postal a provincia
     const provinciaDestino = this.mapPostalCodeToProvinceCode(request.postalCode);
 
-    // Cotizar con el nuevo endpoint
+    // UNA SOLA llamada a la API con todos los datos
     const quotationResult = await this.quoteWithRapidAPI(
       request.postalCode, 
       provinciaDestino, 
-      packaging.peso
+      packaging.peso,
+      {
+        alto: packaging.alto,
+        ancho: packaging.ancho,
+        largo: packaging.largo
+      }
     );
 
-    // Parsear respuesta de la API
-    const apiResponse = quotationResult as any;
+    const quotationData = quotationResult as any;
     
-    const response: DeliveryQuoteResponse = {
+    // La API devuelve la respuesta completa directamente
+    const quote: DeliveryQuoteResponse = {
       success: true,
       postalCode: request.postalCode,
       packaging,
+      // Enviar opciones según lo que devuelva la API
       options: {
-        domicilio: {
-          precio: apiResponse.precio || apiResponse.total || 0,
-          tiempoEntrega: apiResponse.tiempoEntrega || apiResponse.dias || 0,
-          servicio: apiResponse.servicio || 'Correo Argentino',
+        domicilio: quotationData.precioDomicilio ? {
+          precio: quotationData.precioDomicilio,
+          tiempoEntrega: quotationData.diasEstimadosDomicilio || quotationData.diasEstimados || 5,
+          servicio: 'Correo Argentino',
           modalidad: 'domicilio'
-        }
-      }
+        } : undefined,
+        sucursal: quotationData.precioSucursal ? {
+          precio: quotationData.precioSucursal,
+          tiempoEntrega: quotationData.diasEstimadosSucursal || quotationData.diasEstimados || 3,
+          servicio: 'Correo Argentino',
+          modalidad: 'sucursal'
+        } : undefined
+      },
+      // Incluir respuesta completa de la API para debugging
+      rawApiResponse: quotationData,
+      error: undefined
     };
 
     // Guardar en cache
-    this.setCache(this.cache.quotes, cacheKey, response, CACHE_TTL_QUOTES);
+    this.cache.quotes.set(cacheKey, {
+      data: quote,
+      timestamp: Date.now(),
+      expiresIn: CACHE_TTL_QUOTES
+    });
 
-    return response;
+    console.log('Cotización completada:', quote);
+    return quote;
   }
 
-  // Utilidades de cache
+  // Obtener desde cache con verificación de expiración
   private getFromCache<T>(cache: Map<string, CacheEntry<T>>, key: string): T | null {
     const entry = cache.get(key);
     if (!entry) return null;
@@ -264,14 +342,6 @@ class DeliveryServiceClass {
     }
 
     return entry.data;
-  }
-
-  private setCache<T>(cache: Map<string, CacheEntry<T>>, key: string, data: T, ttl: number): void {
-    cache.set(key, {
-      data,
-      timestamp: Date.now(),
-      expiresIn: ttl
-    });
   }
 
   // Limpiar cache expirado
@@ -307,159 +377,6 @@ class DeliveryServiceClass {
         configured: !!RAPIDAPI_KEY
       }
     };
-  }
-
-  // Test de configuración RapidAPI
-  public testRapidAPIConfig(): void {
-    console.log('Configuración RapidAPI:');
-    console.log('- RAPIDAPI_KEY:', RAPIDAPI_KEY ? '[CONFIGURADO]' : '[NO CONFIGURADO]');
-    console.log('- RAPIDAPI_BASE_URL:', RAPIDAPI_BASE_URL);
-    console.log('- RAPIDAPI_HOST:', RAPIDAPI_HOST);
-  }
-
-  // Test de RapidAPI completo (para debugging)
-  public async testRapidAPI(): Promise<any> {
-    const results: any[] = [];
-    
-    console.log('=== TEST COMPLETO DE RAPIDAPI ===');
-    console.log('Variables de entorno:');
-    console.log('- RAPIDAPI_KEY:', RAPIDAPI_KEY ? '[CONFIGURADO]' : '[NO CONFIGURADO]');
-    console.log('- RAPIDAPI_BASE_URL:', RAPIDAPI_BASE_URL);
-    console.log('- ORIGIN_POSTAL_CODE:', ORIGIN_POSTAL_CODE);
-    
-    // Probar diferentes endpoints
-    const testEndpoints = [
-      { path: '/sucursales', description: 'Obtener sucursales' },
-      { path: '/cotizar?origen=1000&destino=2000&peso=0.5&alto=10&ancho=10&largo=10&modalidad=domicilio', description: 'Cotizar envío' }
-    ];
-    
-    for (const endpoint of testEndpoints) {
-      console.log(`\nProbando endpoint: ${endpoint.description}`);
-      const fullUrl = `${RAPIDAPI_BASE_URL}${endpoint.path}`;
-      console.log(`URL: ${fullUrl}`);
-      
-      try {
-        const response = await fetch(fullUrl, {
-          method: 'GET',
-          headers: this.getRapidAPIHeaders()
-        });
-        
-        console.log(`Respuesta: ${response.status} ${response.statusText}`);
-        
-        let responseBody = '';
-        try {
-          responseBody = await response.text();
-          console.log(`Body (primeros 200 chars): ${responseBody.substring(0, 200)}`);
-        } catch (e) {
-          console.log('No se pudo leer el body');
-        }
-        
-        results.push({
-          endpoint: endpoint.description,
-          url: fullUrl,
-          status: response.status,
-          statusText: response.statusText,
-          body: responseBody.substring(0, 200),
-          success: response.status === 200
-        });
-        
-        if (response.status === 200) {
-          console.log('¡ÉXITO! Este endpoint funciona');
-        }
-        
-      } catch (error) {
-        console.log(`Error: ${error instanceof Error ? error.message : 'Error desconocido'}`);
-        results.push({
-          endpoint: endpoint.description,
-          url: fullUrl,
-          error: error instanceof Error ? error.message : 'Error desconocido'
-        });
-      }
-    }
-    
-    return {
-      success: results.some(r => r.success),
-      results,
-      recommendations: this.getRapidAPIRecommendations(results)
-    };
-  }
-  
-  private getRapidAPIRecommendations(results: any[]): string[] {
-    const recommendations: string[] = [];
-    
-    const has401 = results.some(r => r.status === 401);
-    const has403 = results.some(r => r.status === 403);
-    const has404 = results.some(r => r.status === 404);
-    const hasConnError = results.some(r => r.error);
-    
-    if (has401 || has403) {
-      recommendations.push('Clave de RapidAPI incorrecta o sin acceso');
-      recommendations.push('Verifica tu X-RapidAPI-Key en el dashboard de RapidAPI');
-      recommendations.push('Asegúrate de estar suscrito al API de Correo Argentino');
-    }
-    
-    if (has404) {
-      recommendations.push('URL de API incorrecta o endpoint no encontrado');
-      recommendations.push('Revisa la documentación de RapidAPI para los endpoints correctos');
-    }
-    
-    if (hasConnError) {
-      recommendations.push('Problemas de conectividad');
-      recommendations.push('Verifica tu conexión a internet');
-    }
-    
-    if (!RAPIDAPI_KEY) {
-      recommendations.push('RAPIDAPI_KEY no está configurada');
-      recommendations.push('Agrega RAPIDAPI_KEY a tus variables de entorno');
-    }
-    
-    return recommendations;
-  }
-
-  // Test básico de RapidAPI (para debugging)
-  public async testRapidAPIBasic(): Promise<any> {
-    console.log('=== TEST BÁSICO DE RAPIDAPI ===');
-    this.testRapidAPIConfig();
-    
-    // Primero probar si la API responde
-    try {
-      console.log('Probando conectividad básica...');
-      const testUrl = `${RAPIDAPI_BASE_URL}/sucursales`;
-      
-      const response = await fetch(testUrl, {
-        method: 'GET',
-        headers: this.getRapidAPIHeaders()
-      });
-      
-      console.log('Respuesta de conectividad:', response.status, response.statusText);
-      
-      // Intentar leer el body para más información
-      const body = await response.text();
-      console.log('Body de respuesta (primeros 200 chars):', body.substring(0, 200));
-      
-      if (response.ok) {
-        return {
-          success: true,
-          status: response.status,
-          provider: 'RapidAPI',
-          endpoint: testUrl
-        };
-      } else {
-        return {
-          success: false,
-          status: response.status,
-          error: `HTTP ${response.status}: ${response.statusText}`,
-          body: body.substring(0, 200)
-        };
-      }
-      
-    } catch (error) {
-      console.log('Error de conectividad:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Error desconocido'
-      };
-    }
   }
 }
 

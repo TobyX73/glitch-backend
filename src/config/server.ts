@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import express from 'express';
+import cors from 'cors';
 import productRoutes from '../features/products/productRoutes';
 import categoryRoutes from '../features/category/categoryRoutes';
 import userRoutes from '../features/users/userRoutes';
@@ -9,6 +10,26 @@ import deliveryRoutes from '../features/delivery/deliveryRoutes';
 
 
 const app = express();
+
+// Configuración CORS dinámica
+const allowedOrigins = process.env.FRONTEND_URL?.split(',') || ['http://localhost:3001'];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Permitir requests sin origin (Postman, curl, móviles, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS bloqueado para origen: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true, // Importante para JWT y cookies
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // Middleware básico, este funciona como un puente para nuestras res, req
 app.use(express.json());
