@@ -18,12 +18,19 @@ export const orderService = {
   // Crear orden desde carrito
   async createOrderFromCart(data: CreateOrderInput): Promise<OrderResponse> {
     try {
-      // Verificar stock y obtener productos
+      // Verificar stock y obtener productos con sus variantes
       const productIds = data.items.map(item => item.productId);
       const products = await prisma.product.findMany({
         where: {
           id: { in: productIds },
           isActive: true
+        },
+        include: {
+          variants: true,
+          images: {
+            where: { isMain: true },
+            take: 1
+          }
         }
       });
 
@@ -31,14 +38,27 @@ export const orderService = {
         throw new Error('Algunos productos no están disponibles');
       }
 
-      // Verificar stock
+      // Verificar stock por variante
       for (const item of data.items) {
         const product = products.find(p => p.id === item.productId);
         if (!product) {
           throw new Error(`Producto con ID ${item.productId} no encontrado`);
         }
-        if (product.stock < item.quantity) {
-          throw new Error(`Stock insuficiente para ${product.name}. Disponible: ${product.stock}`);
+
+        // Si el item tiene variantId o size, verificar stock de esa variante
+        let variant = null;
+        if (item.variantId) {
+          variant = product.variants.find(v => v.id === item.variantId);
+        } else if (item.size) {
+          variant = product.variants.find(v => v.size === item.size);
+        }
+
+        if (!variant) {
+          throw new Error(`Variante no encontrada para ${product.name}${item.size ? ` talla ${item.size}` : ''}`);
+        }
+
+        if (variant.stock < item.quantity) {
+          throw new Error(`Stock insuficiente para ${product.name} talla ${variant.size}. Disponible: ${variant.stock}`);
         }
       }
 
@@ -46,7 +66,7 @@ export const orderService = {
       let total = 0;
       for (const item of data.items) {
         const product = products.find(p => p.id === item.productId);
-        total += Number(product!.price) * item.quantity;
+        total += Number(product!.basePrice) * item.quantity;
       }
 
       // Generar referencia externa única
@@ -74,18 +94,43 @@ export const orderService = {
           }
         });
 
-        // Crear los items de la orden
+        // Crear los items de la orden y descontar stock
         const orderItems = await Promise.all(
-          data.items.map(item => {
+          data.items.map(async (item) => {
             const product = products.find(p => p.id === item.productId)!;
+            
+            // Encontrar la variante
+            let variant = null;
+            if (item.variantId) {
+              variant = product.variants.find(v => v.id === item.variantId);
+            } else if (item.size) {
+              variant = product.variants.find(v => v.size === item.size);
+            }
+
+            // Descontar stock de la variante
+            if (variant) {
+              await tx.productVariant.update({
+                where: { id: variant.id },
+                data: {
+                  stock: {
+                    decrement: item.quantity
+                  }
+                }
+              });
+            }
+
+            const mainImage = product.images[0]?.url || null;
+
             return tx.orderItem.create({
               data: {
                 orderId: newOrder.id,
                 productId: item.productId,
+                variantId: variant?.id,
+                size: variant?.size,
                 quantity: item.quantity,
-                price: Number(product.price),
+                price: Number(product.basePrice),
                 productName: product.name,
-                productImage: product.imageUrl
+                productImage: mainImage
               }
             });
           })

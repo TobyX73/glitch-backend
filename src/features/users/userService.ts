@@ -1,7 +1,7 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../../config/database';
-import { CreateUserInput, UpdateUserInput, LoginInput, ChangePasswordInput, AuthResponse, UserProfile } from './userTypes';
+import { CreateUserInput, UpdateUserInput, LoginInput, ChangePasswordInput, AuthResponse, UserProfile, UserDetailResponse, GetAllUsersParams } from './userTypes';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key';
 const SALT_ROUNDS = 10;
@@ -116,7 +116,7 @@ export const userService = {
   },
 
   // Obtener usuario por ID
-  async getUserById(id: number): Promise<UserProfile> {
+  async getUserById(id: number): Promise<UserDetailResponse> {
     try {
       const user = await prisma.user.findUnique({
         where: { id },
@@ -142,7 +142,74 @@ export const userService = {
         throw new Error('La cuenta ha sido desactivada');
       }
 
-      return user;
+      // Obtener estadísticas de órdenes
+      const [totalOrders, completedOrders] = await Promise.all([
+        prisma.order.count({
+          where: { userId: id }
+        }),
+        prisma.order.count({
+          where: { 
+            userId: id,
+            status: 'PAID'
+          }
+        })
+      ]);
+
+      // Obtener dirección de la última orden
+      const lastOrder = await prisma.order.findFirst({
+        where: { userId: id },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          shippingInfo: true
+        }
+      });
+
+      // Obtener historial de órdenes
+      const orders = await prisma.order.findMany({
+        where: { userId: id },
+        include: {
+          items: {
+            select: {
+              productName: true,
+              quantity: true,
+              size: true,
+              price: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      // Formatear historial de órdenes
+      const orderHistory = orders.map(order => ({
+        id: order.id,
+        orderNumber: `ORD-2024-${String(order.id).padStart(3, '0')}`,
+        date: order.createdAt,
+        status: order.status,
+        total: Number(order.total),
+        items: order.items.map(item => ({
+          productName: item.productName,
+          quantity: item.quantity,
+          size: item.size || undefined,
+          price: Number(item.price)
+        }))
+      }));
+
+      return {
+        ...user,
+        statistics: {
+          totalOrders,
+          completedOrders
+        },
+        address: lastOrder?.shippingInfo ? {
+          street: lastOrder.shippingInfo.street,
+          city: lastOrder.shippingInfo.city,
+          state: lastOrder.shippingInfo.state,
+          zipCode: lastOrder.shippingInfo.zipCode,
+          country: lastOrder.shippingInfo.country || 'Argentina'
+        } : undefined,
+        orderHistory
+      };
     } catch (error) {
       throw new Error(`Error al obtener usuario: ${error instanceof Error ? error.message : 'Error desconocido'}`);
     }
@@ -270,12 +337,23 @@ export const userService = {
   },
 
   // Obtener todos los usuarios 
-  async getAllUsers(): Promise<UserProfile[]> {
+  async getAllUsers(params: GetAllUsersParams = {}): Promise<UserProfile[]> {
     try {
+      const where: any = {
+        isActive: true
+      };
+
+      // Agregar filtro de búsqueda si existe
+      if (params.search) {
+        where.OR = [
+          { firstName: { contains: params.search, mode: 'insensitive' } },
+          { lastName: { contains: params.search, mode: 'insensitive' } },
+          { email: { contains: params.search, mode: 'insensitive' } }
+        ];
+      }
+
       const users = await prisma.user.findMany({
-        where: {
-          isActive: true
-        },
+        where,
         select: {
           id: true,
           email: true,

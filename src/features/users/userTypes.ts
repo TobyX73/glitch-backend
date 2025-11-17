@@ -49,3 +49,42 @@ export interface UserProfile {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface UserStatistics {
+  totalOrders: number;
+  completedOrders: number;
+}
+
+export interface UserAddress {
+  street: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country: string;
+}
+
+export interface UserOrderItem {
+  productName: string;
+  quantity: number;
+  size?: string;
+  price: number;
+}
+
+export interface UserOrderHistory {
+  id: number;
+  orderNumber: string;
+  date: Date;
+  status: string;
+  total: number;
+  items: UserOrderItem[];
+}
+
+export interface UserDetailResponse extends UserProfile {
+  statistics: UserStatistics;
+  address?: UserAddress;
+  orderHistory: UserOrderHistory[];
+}
+
+export interface GetAllUsersParams {
+  search?: string;
+}

@@ -2,13 +2,12 @@ import { productService } from "./productService";
 import { CreateProductInput, ProductsQueryParams, UpdateProductInput } from "./productTypes";
 import { CreateProductDto } from "./DTOs/productCreateDTO";
 import { UpdateProductDto } from "./DTOs/productUpdateDTO";
-import { UpdateStockDto } from "./DTOs/updateStockDTO";
 import { Request, Response } from "express";
 
 export const productController = {
 
-    //Crear producto
-    async create(req: Request, res: Response) {
+  //Crear producto
+  async create(req: Request, res: Response) {
     try {
       // Los datos ya están validados por el middleware DTO
       const data: CreateProductDto = req.body;
@@ -17,10 +16,11 @@ export const productController = {
       const productData: CreateProductInput = {
         name: data.name,
         description: data.description,
-        price: data.price,
-        stock: data.stock || 0,
-        imageUrl: data.imageUrl,
-        categoryId: data.categoryId
+        basePrice: data.basePrice,
+        categoryId: data.categoryId,
+        isActive: data.isActive,
+        images: data.images,
+        variants: data.variants
       };
 
       const product = await productService.createProduct(productData);
@@ -106,8 +106,8 @@ export const productController = {
     }
   },
 
-    // Actualizar producto
-    async update(req: Request, res: Response) {
+  // Actualizar producto
+  async update(req: Request, res: Response) {
     try {
       const id = parseInt(req.params.id);
 
@@ -125,10 +125,11 @@ export const productController = {
       const updateData: UpdateProductInput = {
         name: data.name,
         description: data.description,
-        price: data.price,
-        stock: data.stock,
-        imageUrl: data.imageUrl,
-        categoryId: data.categoryId
+        basePrice: data.basePrice,
+        categoryId: data.categoryId,
+        isActive: data.isActive,
+        images: data.images,
+        variants: data.variants
       };
 
       const product = await productService.updateProduct(id, updateData);
@@ -180,6 +181,7 @@ export const productController = {
   async updateStock(req: Request, res: Response) {
     try {
       const id = parseInt(req.params.id);
+      const { size, stock } = req.body;
 
       if (isNaN(id)) {
         return res.status(400).json({
@@ -188,15 +190,19 @@ export const productController = {
         });
       }
 
-      // Los datos ya están validados por el middleware DTO
-      const { stock }: UpdateStockDto = req.body;
+      if (!size || stock === undefined) {
+        return res.status(400).json({
+          success: false,
+          error: 'Se requiere talla (size) y stock'
+        });
+      }
 
-      const product = await productService.updateStock(id, stock);
+      const variant = await productService.updateVariantStock(id, size, stock);
 
       res.json({
         success: true,
         message: 'Stock actualizado exitosamente',
-        data: product
+        data: variant
       });
 
     } catch (error) {

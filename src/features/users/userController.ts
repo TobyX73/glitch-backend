@@ -262,7 +262,9 @@ export const userController = {
         });
       }
 
-      const users = await userService.getAllUsers();
+      const search = req.query.search as string | undefined;
+
+      const users = await userService.getAllUsers({ search });
 
       res.status(200).json({
         success: true,

@@ -1,4 +1,6 @@
-import { IsString, IsNumber, IsOptional, IsBoolean, IsUrl, Min, MinLength, MaxLength, IsPositive } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsBoolean, IsUrl, Min, MinLength, MaxLength, IsPositive, IsArray, ValidateNested, IsIn } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ProductImageDto, ProductVariantDto } from './productCreateDTO';
 
 export class UpdateProductDto {
   @IsOptional()
@@ -13,19 +15,9 @@ export class UpdateProductDto {
   description?: string;
 
   @IsOptional()
-  @IsNumber({}, { message: 'El precio debe ser un número' })
-  @IsPositive({ message: 'El precio debe ser mayor a 0' })
-  price?: number;
-
-  @IsOptional()
-  @IsNumber({}, { message: 'El stock debe ser un número' })
-  @Min(0, { message: 'El stock no puede ser negativo' })
-  stock?: number;
-
-  @IsOptional()
-  @IsString({ message: 'La URL de imagen debe ser un texto' })
-  @IsUrl({}, { message: 'Debe ser una URL válida' })
-  imageUrl?: string;
+  @IsNumber({}, { message: 'El precio base debe ser un número' })
+  @IsPositive({ message: 'El precio base debe ser mayor a 0' })
+  basePrice?: number;
 
   @IsOptional()
   @IsNumber({}, { message: 'La categoría debe ser un número' })
@@ -35,4 +27,16 @@ export class UpdateProductDto {
   @IsOptional()
   @IsBoolean({ message: 'isActive debe ser verdadero o falso' })
   isActive?: boolean;
+
+  @IsOptional()
+  @IsArray({ message: 'Las imágenes deben ser un array' })
+  @ValidateNested({ each: true })
+  @Type(() => ProductImageDto)
+  images?: ProductImageDto[];
+
+  @IsOptional()
+  @IsArray({ message: 'Las variantes deben ser un array' })
+  @ValidateNested({ each: true })
+  @Type(() => ProductVariantDto)
+  variants?: ProductVariantDto[];
 }

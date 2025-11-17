@@ -1,8 +1,9 @@
-import { CreateProductInput, ProductsQueryParams, UpdateProductInput } from "./productTypes";
+import { CreateProductInput, ProductsQueryParams, UpdateProductInput, ProductResponse } from "./productTypes";
 import { prisma } from "../../config/database";
 
 export const productService = {
-  async createProduct(data: CreateProductInput) {
+  // Crear producto con imágenes y variantes
+  async createProduct(data: CreateProductInput): Promise<ProductResponse> {
     try {
       // Verificar que la categoría existe
       const categoryExists = await prisma.category.findUnique({
@@ -13,44 +14,223 @@ export const productService = {
         throw new Error('La categoría especificada no existe');
       }
 
-      // Crear el producto
+      // Validar que solo haya una imagen principal
+      const mainImages = data.images.filter(img => img.isMain);
+      if (mainImages.length > 1) {
+        throw new Error('Solo puede haber una imagen principal');
+      }
+
+      // Si no hay imagen principal, marcar la primera como principal
+      if (mainImages.length === 0 && data.images.length > 0) {
+        data.images[0].isMain = true;
+      }
+
+      // Validar que no haya tallas duplicadas
+      const sizes = data.variants.map(v => v.size);
+      const uniqueSizes = new Set(sizes);
+      if (sizes.length !== uniqueSizes.size) {
+        throw new Error('No puede haber tallas duplicadas');
+      }
+
+      // Crear el producto con imágenes y variantes
       const product = await prisma.product.create({
         data: {
           name: data.name,
           description: data.description,
-          price: data.price,
-          stock: data.stock,
-          imageUrl: data.imageUrl,
+          basePrice: data.basePrice,
           categoryId: data.categoryId,
+          isActive: data.isActive ?? true,
+          images: {
+            create: data.images.map((img, index) => ({
+              url: img.url,
+              order: img.order ?? index,
+              isMain: img.isMain ?? false
+            }))
+          },
+          variants: {
+            create: data.variants.map(variant => ({
+              size: variant.size,
+              stock: variant.stock,
+              sku: variant.sku
+            }))
+          }
         },
         include: {
           category: {
             select: {
               id: true,
-              name: true,
+              name: true
+            }
+          },
+          images: {
+            orderBy: {
+              order: 'asc'
+            }
+          },
+          variants: {
+            orderBy: {
+              size: 'asc'
             }
           }
         }
       });
 
-      return product;
+      return this.formatProductResponse(product);
     } catch (error) {
-      throw new Error(`Error al crear el producto:`);
+      throw new Error(`Error al crear el producto: ${error instanceof Error ? error.message : 'Error desconocido'}`);
     }
   },
 
-  
- //  Actualizar producto 
-  async updateProduct(id: number, data: UpdateProductInput) {
+  // Obtener producto por ID
+  async getProductById(id: number): Promise<ProductResponse | null> {
+    try {
+      const product = await prisma.product.findUnique({
+        where: { id },
+        include: {
+          category: {
+            select: {
+              id: true,
+              name: true
+            }
+          },
+          images: {
+            orderBy: {
+              order: 'asc'
+            }
+          },
+          variants: {
+            orderBy: {
+              size: 'asc'
+            }
+          }
+        }
+      });
+
+      if (!product) {
+        return null;
+      }
+
+      return this.formatProductResponse(product);
+    } catch (error) {
+      throw new Error(`Error al obtener producto: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    }
+  },
+
+  // Obtener todos los productos con filtros
+  async getProducts(params: ProductsQueryParams) {
+    try {
+      const {
+        page = 1,
+        limit = 12,
+        categoryId,
+        search,
+        minPrice,
+        maxPrice,
+        isActive = true,
+        size
+      } = params;
+
+      const skip = (page - 1) * limit;
+
+      // Construir filtros
+      const where: any = {
+        isActive: isActive
+      };
+
+      if (categoryId) {
+        where.categoryId = categoryId;
+      }
+
+      if (search) {
+        where.OR = [
+          { name: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } }
+        ];
+      }
+
+      if (minPrice !== undefined || maxPrice !== undefined) {
+        where.basePrice = {};
+        if (minPrice !== undefined) {
+          where.basePrice.gte = minPrice;
+        }
+        if (maxPrice !== undefined) {
+          where.basePrice.lte = maxPrice;
+        }
+      }
+
+      // Si se filtra por talla, buscar productos que tengan esa talla
+      if (size) {
+        where.variants = {
+          some: {
+            size: size,
+            stock: { gt: 0 } // Solo variantes con stock
+          }
+        };
+      }
+
+      // Obtener productos
+      const [products, total] = await Promise.all([
+        prisma.product.findMany({
+          where,
+          skip,
+          take: limit,
+          include: {
+            category: {
+              select: {
+                id: true,
+                name: true
+              }
+            },
+            images: {
+              orderBy: {
+                order: 'asc'
+              }
+            },
+            variants: {
+              orderBy: {
+                size: 'asc'
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'desc'
+          }
+        }),
+        prisma.product.count({ where })
+      ]);
+
+      const formattedProducts = products.map(product => this.formatProductResponse(product));
+
+      return {
+        products: formattedProducts,
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit)
+        }
+      };
+    } catch (error) {
+      throw new Error(`Error al obtener productos: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    }
+  },
+
+  // Actualizar producto
+  async updateProduct(id: number, data: UpdateProductInput): Promise<ProductResponse> {
     try {
       const productExists = await prisma.product.findUnique({
-        where: { id }
+        where: { id },
+        include: {
+          images: true,
+          variants: true
+        }
       });
 
       if (!productExists) {
         throw new Error('Producto no encontrado');
       }
 
+      // Si se actualiza la categoría, verificar que existe
       if (data.categoryId && data.categoryId !== productExists.categoryId) {
         const categoryExists = await prisma.category.findUnique({
           where: { id: data.categoryId }
@@ -61,29 +241,85 @@ export const productService = {
         }
       }
 
+      // Si se actualizan imágenes, validar imagen principal
+      if (data.images) {
+        const mainImages = data.images.filter(img => img.isMain);
+        if (mainImages.length > 1) {
+          throw new Error('Solo puede haber una imagen principal');
+        }
+        if (mainImages.length === 0 && data.images.length > 0) {
+          data.images[0].isMain = true;
+        }
+      }
+
+      // Si se actualizan variantes, validar tallas duplicadas
+      if (data.variants) {
+        const sizes = data.variants.map(v => v.size);
+        const uniqueSizes = new Set(sizes);
+        if (sizes.length !== uniqueSizes.size) {
+          throw new Error('No puede haber tallas duplicadas');
+        }
+      }
+
+      // Actualizar producto
       const product = await prisma.product.update({
         where: { id },
-        data,
+        data: {
+          ...(data.name && { name: data.name }),
+          ...(data.description !== undefined && { description: data.description }),
+          ...(data.basePrice && { basePrice: data.basePrice }),
+          ...(data.categoryId && { categoryId: data.categoryId }),
+          ...(data.isActive !== undefined && { isActive: data.isActive }),
+          // Si se envían imágenes, eliminar las anteriores y crear las nuevas
+          ...(data.images && {
+            images: {
+              deleteMany: {},
+              create: data.images.map((img, index) => ({
+                url: img.url,
+                order: img.order ?? index,
+                isMain: img.isMain ?? false
+              }))
+            }
+          }),
+          // Si se envían variantes, eliminar las anteriores y crear las nuevas
+          ...(data.variants && {
+            variants: {
+              deleteMany: {},
+              create: data.variants.map(variant => ({
+                size: variant.size,
+                stock: variant.stock,
+                sku: variant.sku
+              }))
+            }
+          })
+        },
         include: {
           category: {
             select: {
               id: true,
-              name: true,
+              name: true
+            }
+          },
+          images: {
+            orderBy: {
+              order: 'asc'
+            }
+          },
+          variants: {
+            orderBy: {
+              size: 'asc'
             }
           }
         }
       });
 
-      return {
-        ...product,
-        price: Number(product.price)
-      };
+      return this.formatProductResponse(product);
     } catch (error) {
-      throw new Error(`Error al actualizar producto`);
+      throw new Error(`Error al actualizar producto: ${error instanceof Error ? error.message : 'Error desconocido'}`);
     }
   },
 
-  //Eliminar el producto (soft delete)
+  // Eliminar producto (soft delete)
   async deleteProduct(id: number) {
     try {
       const productExists = await prisma.product.findUnique({
@@ -94,199 +330,63 @@ export const productService = {
         throw new Error('Producto no encontrado');
       }
 
-      // Soft delete - marcar como inactivo
-      const product = await prisma.product.update({
+      await prisma.product.update({
         where: { id },
-        data: { 
-          isActive: false,
-          updatedAt: new Date()
-        },
-        include: {
-          category: {
-            select: {
-              id: true,
-              name: true,
-            }
-          }
+        data: {
+          isActive: false
         }
       });
 
-      return {
-        ...product,
-        price: Number(product.price)
-      };
+      return { message: 'Producto eliminado exitosamente' };
     } catch (error) {
       throw new Error(`Error al eliminar producto: ${error instanceof Error ? error.message : 'Error desconocido'}`);
     }
   },
 
-  // Actualizar stock
-  async updateStock(id: number, newStock: number) {
+  // Actualizar stock de una variante específica
+  async updateVariantStock(productId: number, size: string, stock: number) {
     try {
-      if (newStock < 0) {
-        throw new Error('El stock no puede ser negativo');
-      }
-
-      const productExists = await prisma.product.findUnique({
-        where: { id }
-      });
-
-      if (!productExists) {
-        throw new Error('Producto no encontrado');
-      }
-
-      const product = await prisma.product.update({
-        where: { id },
-        data: { 
-          stock: newStock,
-          updatedAt: new Date()
-        },
-        select: {
-          id: true,
-          name: true,
-          stock: true,
-          updatedAt: true
+      const variant = await prisma.productVariant.findFirst({
+        where: {
+          productId,
+          size
         }
       });
 
-      return product;
-    } catch (error) {
-      throw new Error(`Error al actualizar stock:`);
-    }
-  },
-
-  // Obtener productos con paginacion y filtros
-   async getProducts(params: ProductsQueryParams = {}) {
-    try {
-      const page = params.page || 1;
-      const limit = params.limit || 12;
-      const skip = (page - 1) * limit;
-
-      const where: any = {
-        isActive: true  // Por defecto solo mostrar productos activos
-      };
-
-      // Filtros que tu frontend puede usar
-      if (params.categoryId) {
-        where.categoryId = params.categoryId;
+      if (!variant) {
+        throw new Error(`Variante con talla ${size} no encontrada`);
       }
 
-      //Filtro para que encuentre por nombre cercano o descripcion
-      if (params.search) {
-        where.OR = [
-          { name: { contains: params.search, mode: 'insensitive' } },
-          { description: { contains: params.search, mode: 'insensitive' } }
-        ];
-      }
-
-      //Filtro para precio minimo y maximo
-      if (params.minPrice || params.maxPrice) {
-        where.price = {};
-        if (params.minPrice) where.price.gte = params.minPrice;
-        if (params.maxPrice) where.price.lte = params.maxPrice;
-      }
-
-      // Permitir override del filtro isActive si se especifica explícitamente
-      if (params.isActive !== undefined) {
-        where.isActive = params.isActive;
-      }
-
-      const [products, total] = await Promise.all([
-        prisma.product.findMany({
-          where,
-          include: {
-            category: {
-              select: {
-                id: true,
-                name: true,
-              }
-            }
-          },
-          skip,
-          take: limit,
-          orderBy: {
-            createdAt: 'desc'
-          }
-        }),
-        prisma.product.count({ where })
-      ]);
-
-      const productsFormatted = products.map(product => ({
-        ...product,
-        price: Number(product.price)
-      }));
-
-      return {
-        products: productsFormatted,
-        pagination: {
-          page,
-          limit,
-          total,
-          pages: Math.ceil(total / limit),
-          hasNext: page < Math.ceil(total / limit),
-          hasPrev: page > 1
-        }
-      };
-    } catch (error) {
-      throw new Error('Error al obtener productos');
-    }
-  },
-
-  // Obtener producto por ID
-  async getProductById(id: number) {
-    try {
-      const product = await prisma.product.findUnique({
-        where: { id },
-        include: {
-          category: {
-            select: {
-              id: true,
-              name: true,
-            }
-          }
-        }
+      const updatedVariant = await prisma.productVariant.update({
+        where: { id: variant.id },
+        data: { stock }
       });
 
-      if (!product) {
-        throw new Error('Producto no encontrado');
-      }
-
-      return {
-        ...product,
-        price: Number(product.price)
-      };
+      return updatedVariant;
     } catch (error) {
-      throw new Error('Error al obtener producto');
+      throw new Error(`Error al actualizar stock: ${error instanceof Error ? error.message : 'Error desconocido'}`);
     }
   },
 
-  // Reducir stock después de pago aprobado
-  async reduceStock(orderId: number): Promise<void> {
-    try {
-      const order = await prisma.order.findUnique({
-        where: { id: orderId },
-        include: { items: true }
-      });
+  // Formatear respuesta del producto
+  formatProductResponse(product: any): ProductResponse {
+    const totalStock = product.variants?.reduce((sum: number, variant: any) => sum + variant.stock, 0) || 0;
+    const mainImage = product.images?.find((img: any) => img.isMain)?.url || product.images?.[0]?.url;
 
-      if (!order) {
-        throw new Error('Orden no encontrada');
-      }
-
-      await prisma.$transaction(async (tx) => {
-        for (const item of order.items) {
-          await tx.product.update({
-            where: { id: item.productId },
-            data: {
-              stock: {
-                decrement: item.quantity
-              }
-            }
-          });
-        }
-      });
-    } catch (error) {
-      console.error('Error reduciendo stock:', error);
-      throw error;
-    }
-  },
+    return {
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      basePrice: Number(product.basePrice),
+      categoryId: product.categoryId,
+      isActive: product.isActive,
+      createdAt: product.createdAt,
+      updatedAt: product.updatedAt,
+      category: product.category,
+      images: product.images || [],
+      variants: product.variants || [],
+      totalStock,
+      mainImage
+    };
+  }
 };

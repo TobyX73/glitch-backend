@@ -265,12 +265,15 @@ export const orderController = {
         where: {
           id: { in: productIds },
           isActive: true
+        },
+        include: {
+          variants: true
         }
       });
 
       const verification = items.map((item: any) => {
         const product = products.find(p => p.id === item.productId);
-        
+
         if (!product) {
           return {
             productId: item.productId,
@@ -279,21 +282,55 @@ export const orderController = {
           };
         }
 
-        if (product.stock < item.quantity) {
+        // Si se indicó variante (variantId o size), verificar stock de la variante
+        let variant = null;
+        if (item.variantId) {
+          variant = product.variants.find((v: any) => v.id === item.variantId);
+        } else if (item.size) {
+          variant = product.variants.find((v: any) => v.size === item.size);
+        }
+
+        if (variant) {
+          if (variant.stock < item.quantity) {
+            return {
+              productId: item.productId,
+              variantId: variant.id,
+              size: variant.size,
+              available: false,
+              message: `Stock insuficiente. Disponible: ${variant.stock}`,
+              availableStock: variant.stock
+            };
+          }
+
+          return {
+            productId: item.productId,
+            variantId: variant.id,
+            size: variant.size,
+            available: true,
+            message: 'Disponible',
+            currentPrice: Number(product.basePrice),
+            availableStock: variant.stock
+          };
+        }
+
+        // Si no hay variante indicada, mostramos stock total sumando variantes
+        const totalStock = product.variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+
+        if (totalStock < item.quantity) {
           return {
             productId: item.productId,
             available: false,
-            message: `Stock insuficiente. Disponible: ${product.stock}`,
-            availableStock: product.stock
+            message: `Stock insuficiente. Total disponible (todas las variantes): ${totalStock}`,
+            availableStock: totalStock
           };
         }
 
         return {
           productId: item.productId,
           available: true,
-          message: 'Disponible',
-          currentPrice: Number(product.price),
-          availableStock: product.stock
+          message: 'Disponible (por variantes)',
+          currentPrice: Number(product.basePrice),
+          availableStock: totalStock
         };
       });
 
