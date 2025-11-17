@@ -5,8 +5,9 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "dev:public": "concurrently --kill-others --prefix \"[{name}]\" --names \"SERVER,NGROK\" \"npm run dev\" \"ngrok http 3000 --log stdout\"",
-    "build": "npx prisma generate && tsc",
+    "build": "npx prisma generate && npx prisma migrate deploy && tsc",
     "start": "node dist/index.js",
+    "start:prod": "npm run build && npm start",
     "postinstall": "npx prisma generate",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
