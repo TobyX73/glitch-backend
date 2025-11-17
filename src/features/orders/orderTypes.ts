@@ -9,6 +9,8 @@ export interface CreateOrderInput {
 
 export interface CartItemInput {
   productId: number;
+  variantId?: number; // ID de la variante (talla)
+  size?: string; // Talla seleccionada
   quantity: number;
   // Nota: El precio se obtiene de la base de datos por seguridad
 }
@@ -40,6 +42,8 @@ export interface OrderResponse {
 export interface OrderItemResponse {
   id: number;
   productId: number;
+  variantId?: number;
+  size?: string; // Talla del producto comprado
   quantity: number;
   price: number;
   productName: string;

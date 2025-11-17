@@ -1,4 +1,4 @@
-import { IsArray, IsString, IsEmail, IsOptional, IsInt, IsDecimal, Min, ValidateNested, IsNotEmpty, ValidateIf } from 'class-validator';
+import { IsArray, IsString, IsEmail, IsOptional, IsInt, Min, ValidateNested, IsNotEmpty, ValidateIf } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CartItemDTO {
@@ -9,6 +9,15 @@ export class CartItemDTO {
   @IsInt({ message: 'quantity debe ser un número entero' })
   @Min(1, { message: 'quantity debe ser mayor a 0' })
   quantity!: number;
+
+  // Se puede enviar `variantId` (id de ProductVariant) o `size` (S,M,L,XL,XXL)
+  @IsOptional()
+  @IsInt({ message: 'variantId debe ser un número entero' })
+  variantId?: number;
+
+  @IsOptional()
+  @IsString({ message: 'size debe ser un string' })
+  size?: string;
 
   // Nota: El precio se obtiene de la base de datos por seguridad
   // No se debe confiar en el precio enviado desde el frontend
