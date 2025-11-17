@@ -11,7 +11,7 @@ const storage = multer.memoryStorage();
 const upload = multer({
   storage,
   limits: {
-    fileSize: 5 * 1024 * 1024 // Límite de 5MB por imagen
+    fileSize: 10 * 1024 * 1024 // Límite de 10MB por imagen
   },
   fileFilter: (req, file, cb) => {
     // Permitir solo imágenes
