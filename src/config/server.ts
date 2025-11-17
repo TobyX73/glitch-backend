@@ -7,6 +7,7 @@ import userRoutes from '../features/users/userRoutes';
 import orderRoutes from '../features/orders/orderRoutes';
 import webhooksRoutes from '../features/webhooks/webhookRoutes';
 import deliveryRoutes from '../features/delivery/deliveryRoutes';
+import uploadRoutes from '../features/uploads/uploadRoutes';
 
 
 const app = express();
@@ -53,5 +54,6 @@ app.use('/api/users', userRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/webhooks', webhooksRoutes); 
 app.use('/api/delivery', deliveryRoutes); 
+app.use('/api/uploads', uploadRoutes); 
 
 export default app;
