@@ -9,7 +9,7 @@ const client = new MercadoPagoConfig({
 });
 
 // URLs separadas para frontend y backend
-const frontendURL = process.env.FRONTEND_URL || 'https://www.google.com'; // URL temporal para testing
+const frontendURL = process.env.FRONTEND_URL || 'https://www.google.com'; 
 const backendURL = process.env.BACKEND_URL || 'http://localhost:3000';
 
 const preference = new Preference(client);
