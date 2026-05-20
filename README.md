@@ -1,4 +1,4 @@
-# Glitch — Backend
+# Glitch - Backend
 
 > API REST para e-commerce de indumentaria. Construida con Express + TypeScript, Prisma ORM, PostgreSQL, autenticación JWT, upload de imágenes a Cloudinary e integración con MercadoPago.
 
